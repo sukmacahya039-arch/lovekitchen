@@ -1,0 +1,6 @@
+{
+  "name": "Love Kitchen",
+  "description": "LOVE KITCHEN – 2.5D Co-Op Restaurant Rush: A 2.5D isometric cartoon 2-player cooperative restaurant time-management game with Phaser 3, Socket.IO real-time multiplayer, and PWA installability.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

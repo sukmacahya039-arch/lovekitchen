@@ -1,0 +1,287 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Reusable Hardened Primitives ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidVolume(val) {
+      return val is number && val >= 0 && val <= 1;
+    }
+
+    function isValidRole(val) {
+      return val is string && (val == 'chef' || val == 'waiter');
+    }
+
+    // --- Validation Blueprints ---
+    function isValidPlayerProfile(data, playerId) {
+      return data.keys().hasAll([
+        'uid',
+        'displayName',
+        'preferredRole',
+        'bestScore',
+        'gamesPlayed',
+        'totalOrdersServed',
+        'masterVolume',
+        'musicVolume',
+        'sfxVolume',
+        'muted',
+        'createdAt',
+        'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'uid',
+        'displayName',
+        'preferredRole',
+        'bestScore',
+        'gamesPlayed',
+        'totalOrdersServed',
+        'masterVolume',
+        'musicVolume',
+        'sfxVolume',
+        'muted',
+        'createdAt',
+        'updatedAt'
+      ])
+      && data.uid is string
+      && data.uid == request.auth.uid
+      && data.uid == playerId
+      && isValidId(data.uid)
+      && data.displayName is string
+      && data.displayName.size() >= 1
+      && data.displayName.size() <= 32
+      && isValidRole(data.preferredRole)
+      && data.bestScore is number
+      && data.bestScore >= 0
+      && data.bestScore <= 1000000
+      && data.gamesPlayed is number
+      && data.gamesPlayed >= 0
+      && data.gamesPlayed <= 100000
+      && data.totalOrdersServed is number
+      && data.totalOrdersServed >= 0
+      && data.totalOrdersServed <= 1000000
+      && isValidVolume(data.masterVolume)
+      && isValidVolume(data.musicVolume)
+      && isValidVolume(data.sfxVolume)
+      && data.muted is bool
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidMatchRecord(data, playerId) {
+      return data.keys().hasAll([
+        'ownerId',
+        'roomCode',
+        'partnerName',
+        'role',
+        'score',
+        'ordersCompleted',
+        'ordersBurned',
+        'stars',
+        'durationSeconds',
+        'mode',
+        'createdAt'
+      ])
+      && data.keys().hasOnly([
+        'ownerId',
+        'roomCode',
+        'partnerName',
+        'role',
+        'score',
+        'ordersCompleted',
+        'ordersBurned',
+        'stars',
+        'durationSeconds',
+        'mode',
+        'createdAt'
+      ])
+      && data.ownerId is string
+      && data.ownerId == request.auth.uid
+      && data.ownerId == playerId
+      && isValidId(data.ownerId)
+      && data.roomCode is string
+      && data.roomCode.size() >= 4
+      && data.roomCode.size() <= 12
+      && data.partnerName is string
+      && data.partnerName.size() >= 1
+      && data.partnerName.size() <= 32
+      && isValidRole(data.role)
+      && data.score is number
+      && data.score >= 0
+      && data.score <= 1000000
+      && data.ordersCompleted is number
+      && data.ordersCompleted >= 0
+      && data.ordersCompleted <= 500
+      && data.ordersBurned is number
+      && data.ordersBurned >= 0
+      && data.ordersBurned <= 500
+      && data.stars is number
+      && data.stars >= 0
+      && data.stars <= 3
+      && data.durationSeconds is number
+      && data.durationSeconds >= 10
+      && data.durationSeconds <= 1800
+      && data.mode is string
+      && (data.mode == 'coop' || data.mode == 'practice')
+      && data.createdAt is timestamp;
+    }
+
+    function isValidLeaderboardEntry(data) {
+      return data.keys().hasAll([
+        'playerId',
+        'displayName',
+        'partnerName',
+        'role',
+        'score',
+        'ordersCompleted',
+        'stars',
+        'createdAt'
+      ])
+      && data.keys().hasOnly([
+        'playerId',
+        'displayName',
+        'partnerName',
+        'role',
+        'score',
+        'ordersCompleted',
+        'stars',
+        'createdAt'
+      ])
+      && data.playerId is string
+      && data.playerId == request.auth.uid
+      && isValidId(data.playerId)
+      && data.displayName is string
+      && data.displayName.size() >= 1
+      && data.displayName.size() <= 32
+      && data.partnerName is string
+      && data.partnerName.size() >= 1
+      && data.partnerName.size() <= 32
+      && isValidRole(data.role)
+      && data.score is number
+      && data.score >= 0
+      && data.score <= 1000000
+      && data.ordersCompleted is number
+      && data.ordersCompleted >= 0
+      && data.ordersCompleted <= 500
+      && data.stars is number
+      && data.stars >= 0
+      && data.stars <= 3
+      && data.createdAt is timestamp;
+    }
+
+    // --- Collection: /players/{playerId} ---
+    match /players/{playerId} {
+      allow get: if isValidId(playerId) && isOwner(playerId);
+      allow list: if isSignedIn() && resource.data.uid == request.auth.uid;
+
+      allow create: if isVerified()
+        && isValidId(playerId)
+        && isOwner(playerId)
+        && isValidPlayerProfile(incoming(), playerId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerified()
+        && isValidId(playerId)
+        && isOwner(playerId)
+        && isValidPlayerProfile(incoming(), playerId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Update Audio & Role Preferences
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName',
+            'preferredRole',
+            'masterVolume',
+            'musicVolume',
+            'sfxVolume',
+            'muted',
+            'updatedAt'
+          ])
+          ||
+          // Action 2: Record Match Completion Stats
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'bestScore',
+              'gamesPlayed',
+              'totalOrdersServed',
+              'preferredRole',
+              'updatedAt'
+            ])
+            && incoming().gamesPlayed >= existing().gamesPlayed
+            && incoming().totalOrdersServed >= existing().totalOrdersServed
+            && incoming().bestScore >= existing().bestScore
+          )
+        );
+
+      allow delete: if false;
+
+      // --- Subcollection: /players/{playerId}/matches/{matchId} ---
+      match /matches/{matchId} {
+        allow get: if isValidId(playerId)
+          && isValidId(matchId)
+          && isOwner(playerId)
+          && exists(/databases/$(database)/documents/players/$(playerId));
+
+        allow list: if isSignedIn()
+          && isOwner(playerId)
+          && resource.data.ownerId == request.auth.uid;
+
+        allow create: if isVerified()
+          && isValidId(playerId)
+          && isValidId(matchId)
+          && isOwner(playerId)
+          && isValidMatchRecord(incoming(), playerId)
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/players/$(playerId))
+          && get(/databases/$(database)/documents/players/$(playerId)).data.uid == request.auth.uid;
+
+        allow update: if false;
+        allow delete: if false;
+      }
+    }
+
+    // --- Collection: /leaderboard/{entryId} (Non-PII public rankings) ---
+    match /leaderboard/{entryId} {
+      allow get: if isValidId(entryId) && isSignedIn();
+      allow list: if isSignedIn() && resource.data.score >= 0;
+
+      allow create: if isVerified()
+        && isValidId(entryId)
+        && isValidLeaderboardEntry(incoming())
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/players/$(request.auth.uid));
+
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}

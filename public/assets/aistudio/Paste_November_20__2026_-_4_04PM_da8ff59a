@@ -1,0 +1,1736 @@
+# GOOGLE AI STUDIO — LOVE KITCHEN
+
+## PHASE 06: ORDER & MENU SYSTEM
+
+### Menu Catalog • Recipe Database • Order Management • Queue • Order Matching
+
+Implementasikan Phase 06 dari project LOVE KITCHEN – 2.5D CO-OP RESTAURANT RUSH.
+
+Phase ini berfokus pada pembangunan sistem menu, resep, pemesanan pelanggan, order ticket, antrean pesanan kitchen, order validation, dan food-to-order matching.
+
+WAJIB melakukan implementasi langsung ke project yang sudah ada.
+
+Jangan hanya membuat UI mockup.
+Jangan hanya memberikan pseudocode.
+Jangan hanya membuat plan.
+Jangan membuat project baru.
+Jangan merusak fitur Phase 01–05.
+
+Semua fitur harus memiliki logic nyata, data terstruktur, validasi, integration, test, dan production build.
+
+---
+
+# 1. PROJECT CONTEXT
+
+LOVE KITCHEN merupakan game restaurant simulator 2.5D dengan visual colorful, cute cartoon, dan gameplay multiplayer cooperative online tepat 2 pemain.
+
+## PLAYER 1 — CHEF
+
+Chef bertanggung jawab:
+
+* Melihat order masuk.
+* Melihat order queue.
+* Memilih order yang akan dikerjakan.
+* Melihat resep.
+* Melihat ingredients.
+* Mengetahui item dan jumlah pesanan.
+* Mengetahui meja tujuan.
+* Mengetahui prioritas order.
+* Menyiapkan makanan pada Phase 07.
+* Menyerahkan makanan yang selesai ke food counter.
+
+## PLAYER 2 — WAITER
+
+Waiter bertanggung jawab:
+
+* Menyambut pelanggan.
+* Berinteraksi dengan customer.
+* Mengambil order.
+* Memilih menu.
+* Menentukan quantity.
+* Mengonfirmasi order.
+* Mengirim order ke kitchen.
+* Melihat status pesanan.
+* Mengambil makanan dari food counter pada tahap berikutnya.
+* Mengantarkan makanan ke meja customer pada tahap berikutnya.
+
+---
+
+# 2. EXISTING PHASES
+
+Project telah dikembangkan secara bertahap.
+
+Pertahankan dan integrasikan dengan:
+
+## Phase 01
+
+Project foundation, architecture, initialization, dan basic game framework.
+
+## Phase 02
+
+Character visual, character design, sprite, animation, dan visual system.
+
+## Phase 03
+
+Restaurant map, isometric layout, tables, kitchen, dining area, dan environment.
+
+## Phase 04
+
+Character movement, tap-to-move, keyboard movement, pathfinding, collision, interaction system, dan depth sorting.
+
+## Phase 05
+
+Customer & Table System:
+
+* Customer spawning.
+* Customer entrance.
+* Queue.
+* Customer AI.
+* Table selection.
+* Table reservation.
+* Seating.
+* Table occupancy.
+* Customer patience.
+* Customer leave.
+* Dirty table.
+* Customer lifecycle.
+
+Audit project sebelum melakukan implementasi.
+
+Gunakan sistem yang sudah ada.
+
+Jangan membuat customer system, movement system, map, table manager, interaction manager, atau event system baru jika sudah tersedia dan dapat digunakan.
+
+---
+
+# 3. OBJECTIVE PHASE 06
+
+Buat Order & Menu System yang benar-benar berfungsi.
+
+Sistem harus mendukung alur:
+
+CUSTOMER SITS
+↓
+WAITER APPROACHES TABLE
+↓
+WAITER OPENS MENU
+↓
+CUSTOMER SELECTS / RECEIVES MENU
+↓
+WAITER TAKES ORDER
+↓
+ORDER ITEMS ADDED
+↓
+ORDER VALIDATION
+↓
+ORDER CONFIRMATION
+↓
+ORDER TICKET CREATED
+↓
+ORDER ENTERS KITCHEN QUEUE
+↓
+CHEF RECEIVES ORDER
+↓
+CHEF CAN VIEW RECIPE AND ORDER DETAILS
+↓
+ORDER STATUS TRACKING
+
+Pada tahap ini, order harus dapat dibuat, disimpan, dimodifikasi sebelum konfirmasi, divalidasi, dikirim, masuk antrean, dan ditampilkan pada Chef UI.
+
+Cooking execution belum menjadi fokus Phase 06.
+
+---
+
+# 4. MENU DATABASE
+
+Buat menu system terstruktur.
+
+Menu tidak boleh hardcoded pada UI.
+
+Gunakan centralized menu data dengan type-safe configuration.
+
+Setiap menu item memiliki:
+
+* id
+* name
+* displayName
+* description
+* category
+* price
+* icon
+* image atau sprite reference
+* recipeId
+* preparationTime
+* difficulty
+* available
+* unlockLevel
+* ingredients
+* tags
+* customerPopularity
+* optional customization
+
+Gunakan ID stabil yang tidak berubah meskipun nama menu atau UI berubah.
+
+Contoh:
+
+BURGER_CLASSIC
+BURGER_CHEESE
+BURGER_DOUBLE
+FRENCH_FRIES
+CHICKEN_NUGGETS
+ICED_TEA
+STRAWBERRY_MILKSHAKE
+CHOCOLATE_MILKSHAKE
+
+Jangan menggunakan display name sebagai identifier.
+
+---
+
+# 5. INITIAL MENU — BURGER CAFE
+
+Implementasikan initial menu untuk restaurant level 1.
+
+Gunakan sekitar 8 menu yang realistis untuk tahap awal.
+
+## CATEGORY: BURGER
+
+### Classic Burger
+
+ID: BURGER_CLASSIC
+
+Ingredients:
+
+* Burger bun.
+* Beef patty.
+* Lettuce.
+* Tomato.
+* Sauce.
+
+### Cheese Burger
+
+ID: BURGER_CHEESE
+
+Ingredients:
+
+* Burger bun.
+* Beef patty.
+* Cheese.
+* Lettuce.
+* Sauce.
+
+### Double Burger
+
+ID: BURGER_DOUBLE
+
+Ingredients:
+
+* Burger bun.
+* 2 beef patties.
+* Cheese.
+* Lettuce.
+* Sauce.
+
+## CATEGORY: SIDES
+
+### French Fries
+
+ID: FRENCH_FRIES
+
+Ingredients:
+
+* Potato.
+* Salt.
+
+### Chicken Nuggets
+
+ID: CHICKEN_NUGGETS
+
+Ingredients:
+
+* Chicken nuggets.
+* Cooking oil.
+
+## CATEGORY: DRINKS
+
+### Iced Tea
+
+ID: ICED_TEA
+
+Ingredients:
+
+* Tea.
+* Water.
+* Ice.
+* Sugar.
+
+### Strawberry Milkshake
+
+ID: STRAWBERRY_MILKSHAKE
+
+Ingredients:
+
+* Milk.
+* Strawberry.
+* Ice cream.
+* Sugar.
+
+### Chocolate Milkshake
+
+ID: CHOCOLATE_MILKSHAKE
+
+Ingredients:
+
+* Milk.
+* Chocolate.
+* Ice cream.
+
+Menu prices, cooking durations, and recipe values harus disimpan dalam configuration/database.
+
+Gunakan harga gameplay yang masuk akal dan mudah diubah.
+
+Menu harus dapat dikembangkan tanpa mengubah core order system.
+
+---
+
+# 6. MENU CATEGORY SYSTEM
+
+Buat category system:
+
+* BURGERS
+* SIDES
+* DRINKS
+* DESSERTS
+* SPECIALS
+
+Category harus dapat ditambahkan di masa depan.
+
+Implementasikan:
+
+* Category filtering.
+* Category selection.
+* Menu availability.
+* Item selection.
+* Item quantity.
+* Item detail.
+* Recipe preview.
+* Price display.
+* Selected item visual state.
+
+Category tab harus benar-benar berfungsi.
+
+---
+
+# 7. MENU UI DESIGN
+
+Buat menu UI yang sesuai dengan LOVE KITCHEN.
+
+Style:
+
+* Cute cartoon.
+* Colorful.
+* Modern.
+* Rounded corners.
+* Friendly.
+* 2.5D game aesthetic.
+* Mobile-first.
+* Responsive.
+* Easy to read.
+
+Menu interface harus menampilkan:
+
+* Menu name.
+* Menu icon/image.
+* Price.
+* Category.
+* Description.
+* Availability.
+* Quantity.
+* Add button.
+* Selected state.
+
+## Menu interaction
+
+Ketika Waiter berinteraksi dengan customer/table:
+
+1. Menu UI terbuka.
+2. Waiter memilih category.
+3. Menu items ditampilkan.
+4. Waiter memilih item.
+5. Quantity dapat diubah.
+6. Item ditambahkan ke order draft.
+7. Item dapat dihapus.
+8. Item dapat diubah quantity-nya.
+9. Total harga diperbarui.
+10. Order dapat dikonfirmasi.
+
+Jangan langsung membuat order ticket ketika item baru dipilih.
+
+Order ticket baru dibuat setelah order dikonfirmasi.
+
+---
+
+# 8. ORDER DRAFT SYSTEM
+
+Implementasikan Order Draft.
+
+Order draft adalah pesanan sementara sebelum dikirim ke kitchen.
+
+Setiap draft memiliki:
+
+* draftId
+* tableId
+* customerId atau customerGroupId
+* waiterId
+* items
+* createdAt
+* updatedAt
+* subtotal
+* total
+* notes
+* draftStatus
+
+## Draft status
+
+* OPEN
+* EDITING
+* READY_TO_CONFIRM
+* CONFIRMED
+* CANCELLED
+
+Draft harus dapat diedit sebelum CONFIRMED.
+
+### Draft operations
+
+Implementasikan:
+
+* Create draft.
+* Add item.
+* Remove item.
+* Increase quantity.
+* Decrease quantity.
+* Set quantity.
+* Edit notes.
+* Recalculate total.
+* Validate draft.
+* Confirm draft.
+* Cancel draft.
+
+Rules:
+
+* Quantity minimum 1.
+* Quantity tidak boleh negatif.
+* Menu item harus valid.
+* Menu item harus available.
+* Item yang sama dapat digabung dalam satu line item.
+* Harga harus dihitung dari database/config, bukan input UI.
+* Total harus selalu dihitung ulang oleh order service.
+* Draft tidak boleh dikirim ke kitchen.
+* Draft tidak boleh menghasilkan ticket sebelum dikonfirmasi.
+
+---
+
+# 9. ORDER DATA MODEL
+
+Implementasikan type-safe order model.
+
+Gunakan struktur sesuai architecture project.
+
+Contoh konsep:
+
+Order:
+
+* orderId
+* orderNumber
+* tableId
+* customerIds
+* customerGroupId
+* waiterId
+* items
+* subtotal
+* total
+* notes
+* priority
+* status
+* createdAt
+* confirmedAt
+* updatedAt
+* deliveredAt
+* completedAt
+
+Order item:
+
+* itemId
+* menuItemId
+* menuNameSnapshot
+* quantity
+* unitPriceSnapshot
+* totalPrice
+* recipeId
+* notes
+* itemStatus
+
+Gunakan snapshot harga dan nama saat order dikonfirmasi.
+
+Jika menu price berubah di kemudian hari, order lama tidak boleh berubah harganya.
+
+---
+
+# 10. ORDER STATUS STATE MACHINE
+
+Implementasikan order status machine.
+
+Minimal status:
+
+* DRAFT
+* CONFIRMED
+* QUEUED
+* ACCEPTED
+* PREPARING
+* READY
+* SERVED
+* COMPLETED
+* CANCELLED
+
+Phase 06 harus benar-benar mengimplementasikan:
+
+* DRAFT
+* CONFIRMED
+* QUEUED
+* ACCEPTED
+
+Status PREPARING, READY, SERVED, dan COMPLETED harus disiapkan untuk integration dengan Phase 07/08, tetapi jangan menampilkan seolah-olah cooking atau delivery sudah berfungsi jika belum diimplementasikan.
+
+## Valid transitions
+
+DRAFT
+↓
+CONFIRMED
+↓
+QUEUED
+↓
+ACCEPTED
+↓
+PREPARING
+↓
+READY
+↓
+SERVED
+↓
+COMPLETED
+
+CANCELLED hanya boleh dilakukan melalui aturan validasi.
+
+Implementasikan transition guard.
+
+Contoh:
+
+* DRAFT → CONFIRMED: allowed.
+* CONFIRMED → QUEUED: allowed.
+* QUEUED → ACCEPTED: allowed.
+* DRAFT → READY: forbidden.
+* QUEUED → COMPLETED: forbidden.
+* CANCELLED → PREPARING: forbidden.
+* COMPLETED → QUEUED: forbidden.
+
+Order state tidak boleh diubah langsung oleh UI.
+
+Semua perubahan status harus melalui OrderService atau OrderStateMachine.
+
+---
+
+# 11. ORDER NUMBER GENERATOR
+
+Buat order number generator.
+
+Contoh:
+
+ORD-001
+ORD-002
+ORD-003
+
+Requirements:
+
+* Unique order ID.
+* Unique order number dalam game session.
+* Tidak collision.
+* Tidak menggunakan array index.
+* Order ID tidak berubah.
+* Order number dapat ditampilkan di UI.
+* Siapkan agar nantinya kompatibel dengan multiplayer/server ID.
+
+Jika game session baru dimulai, order number dapat reset sesuai game session rules.
+
+---
+
+# 12. ORDER QUEUE SYSTEM
+
+Buat KitchenOrderQueue.
+
+Order yang dikonfirmasi harus masuk antrean kitchen.
+
+Queue harus berfungsi secara nyata.
+
+## Queue data
+
+* queueId
+* orderId
+* orderNumber
+* createdAt
+* queuePosition
+* priority
+* status
+
+## Queue behavior
+
+1. Order dikonfirmasi.
+2. Order divalidasi.
+3. Order dibuat.
+4. Order dimasukkan ke queue.
+5. Order mendapatkan queue position.
+6. Chef UI memperbarui antrean.
+7. Chef dapat melihat order.
+8. Chef dapat menerima order.
+9. Order keluar dari pending queue setelah accepted.
+10. Status diperbarui.
+
+Queue harus mendukung multiple orders.
+
+Contoh:
+
+KITCHEN QUEUE
+
+\#001 — Table 03
+
+2x Classic Burger
+1x French Fries
+1x Iced Tea
+
+\#002 — Table 01
+
+1x Cheese Burger
+2x Strawberry Milkshake
+
+\#003 — Table 05
+
+2x Chicken Nuggets
+1x Chocolate Milkshake
+
+---
+
+# 13. ORDER PRIORITY
+
+Buat priority framework.
+
+Order priority:
+
+* NORMAL
+* URGENT
+
+Pada Phase 06, semua order dapat default NORMAL.
+
+Framework harus siap mendukung:
+
+* Customer patience.
+* Long waiting time.
+* VIP customers.
+* Rush hour.
+* Combo orders.
+
+Priority tidak boleh menyebabkan order kehilangan fairness.
+
+Jika menggunakan priority sorting, tetap pertimbangkan order creation time.
+
+Implementasikan queue sorting yang predictable.
+
+---
+
+# 14. CHEF ORDER UI
+
+Buat Chef Order Panel.
+
+Chef harus dapat melihat order yang masuk.
+
+UI harus menampilkan:
+
+* Order number.
+* Table number.
+* Order time.
+* Order age.
+* Menu items.
+* Quantity.
+* Recipe information.
+* Order notes.
+* Queue position.
+* Priority.
+* Status.
+
+## Chef interaction
+
+Chef dapat:
+
+* Membuka order detail.
+* Memilih order.
+* Melihat recipe.
+* Melihat ingredients.
+* Melihat quantity.
+* Accept order.
+* Melihat status order.
+
+Ketika Chef menekan Accept:
+
+* Validasi order.
+* Order status menjadi ACCEPTED.
+* Order keluar dari pending queue.
+* Order masuk ke active orders.
+* UI diperbarui.
+* Event order accepted dipicu.
+
+Accept tidak boleh menghilangkan order dari tracking system.
+
+Order tetap berada di order registry.
+
+---
+
+# 15. RECIPE SYSTEM
+
+Implementasikan Recipe Database.
+
+Recipe harus terpisah dari menu item.
+
+Menu item mengacu pada recipe ID.
+
+Recipe memiliki:
+
+* recipeId
+* name
+* menuItemId
+* ingredients
+* quantities
+* preparationTime
+* cookingSteps
+* stationRequirements
+* difficulty
+* yield
+* recipeVersion
+
+Contoh:
+
+Recipe: CLASSIC_BURGER_RECIPE
+
+Ingredients:
+
+* Burger bun: 1.
+* Beef patty: 1.
+* Lettuce: 1.
+* Tomato: 1.
+* Sauce: 1.
+
+Recipe: CHEESE_BURGER_RECIPE
+
+Ingredients:
+
+* Burger bun: 1.
+* Beef patty: 1.
+* Cheese: 1.
+* Lettuce: 1.
+* Sauce: 1.
+
+Recipe: FRENCH_FRIES_RECIPE
+
+Ingredients:
+
+* Potato: 2.
+* Salt: 1.
+
+Recipe: ICED_TEA_RECIPE
+
+Ingredients:
+
+* Tea: 1.
+* Water: 1.
+* Ice: 1.
+* Sugar: 1.
+
+Recipe: STRAWBERRY_MILKSHAKE_RECIPE
+
+Ingredients:
+
+* Milk: 1.
+* Strawberry: 2.
+* Ice cream: 1.
+* Sugar: 1.
+
+Recipes harus mudah diubah dan diperluas.
+
+Jangan menghardcode recipe logic ke Chef UI.
+
+---
+
+# 16. RECIPE PREVIEW UI
+
+Chef dapat membuka recipe detail.
+
+Recipe UI menampilkan:
+
+* Recipe name.
+* Menu image.
+* Ingredients.
+* Ingredient quantity.
+* Preparation time.
+* Cooking steps.
+* Station requirements.
+* Recipe difficulty.
+
+Pada Phase 06:
+
+* Recipe preview harus berfungsi.
+* Cooking steps dapat ditampilkan.
+* Recipe information harus berasal dari database.
+* Chef belum harus menjalankan cooking animation.
+
+Jangan membuat cooking mechanic yang seharusnya berada pada Phase 07.
+
+---
+
+# 17. ORDER MATCHING SYSTEM
+
+Buat OrderMatchingService.
+
+Sistem harus mampu mencocokkan makanan dengan order yang benar.
+
+Ini sangat penting untuk multiplayer dan untuk tahap Cooking System berikutnya.
+
+## Matching keys
+
+Gunakan:
+
+* orderId
+* orderItemId
+* menuItemId
+* tableId
+* customerGroupId
+* item quantity
+* recipeId
+
+Jangan menggunakan menu name sebagai matching key.
+
+## Matching rules
+
+Ketika food item nanti dibuat:
+
+1. Food item memiliki unique foodId.
+2. Food item memiliki menuItemId.
+3. Food item memiliki orderId.
+4. Food item memiliki orderItemId.
+5. Food item memiliki tableId.
+6. Food item memiliki quantity.
+7. Food item memiliki recipe reference jika diperlukan.
+
+OrderMatchingService harus memvalidasi:
+
+* Food belongs to an active order.
+* Order exists.
+* Order item exists.
+* Menu item matches.
+* Table matches.
+* Quantity tidak melebihi requested quantity.
+* Item belum cancelled.
+* Item belum completed.
+* Item tidak duplicate.
+* Order tidak completed.
+* Order tidak cancelled.
+
+Phase 06 implementasikan matching validation dan service framework.
+
+Buat unit tests menggunakan simulated food objects.
+
+Jangan membuat cooking simulation palsu hanya agar matching terlihat berjalan.
+
+---
+
+# 18. ORDER ITEM TRACKING
+
+Order harus mendukung tracking per item.
+
+Contoh:
+
+Order ORD-001:
+
+* Classic Burger × 2
+* French Fries × 1
+* Iced Tea × 2
+
+Setiap line item memiliki status terpisah.
+
+OrderItemStatus:
+
+* PENDING
+* ACCEPTED
+* PREPARING
+* READY
+* SERVED
+* CANCELLED
+
+Phase 06 minimal implementasikan PENDING dan ACCEPTED.
+
+Status berikutnya harus memiliki transition framework.
+
+Ketika satu item READY pada tahap berikutnya, item lain dalam order tidak boleh otomatis READY.
+
+Order status dapat dihitung berdasarkan item status, tetapi gunakan rules yang jelas.
+
+---
+
+# 19. MULTIPLE ORDERS & MULTIPLE TABLES
+
+Sistem harus mendukung beberapa meja memesan secara bersamaan.
+
+Contoh:
+
+Table 01 → Order ORD-001
+
+Table 03 → Order ORD-002
+
+Table 04 → Order ORD-003
+
+Table 02 → Order ORD-004
+
+Requirements:
+
+* Multiple active orders.
+* Multiple draft orders.
+* Orders from different tables.
+* Multiple orders per table jika rules mengizinkan.
+* Correct order tracking.
+* Correct table association.
+* Correct customer association.
+* Independent order status.
+* No order collision.
+
+Jangan membuat single active order global.
+
+---
+
+# 20. TABLE ORDER VALIDATION
+
+Order harus terhubung dengan Phase 05 TableManager.
+
+Sebelum order dibuat, validasi:
+
+* Table exists.
+* Table is occupied.
+* Customer exists.
+* Customer is assigned to table.
+* Waiter interaction valid.
+* Table is not dirty.
+* Table is not cleaning.
+* Table is not disabled.
+* Customer is not leaving.
+* Draft belongs to correct table.
+
+Jika validasi gagal:
+
+* Tolak order.
+* Tampilkan feedback.
+* Jangan membuat ticket.
+* Jangan mengubah queue.
+* Jangan mengubah table status.
+
+---
+
+# 21. CUSTOMER GROUP ORDERS
+
+Dukung customer group.
+
+Ketika satu grup duduk di meja:
+
+* Waiter dapat membuat order untuk group.
+* Order terhubung ke groupId.
+* Order terhubung ke tableId.
+* Order dapat memiliki customerIds.
+* Group dapat memesan beberapa item.
+* Quantity dapat mewakili seluruh grup.
+* Items dapat memiliki notes.
+
+Contoh:
+
+Group 02:
+
+Table 04
+
+Order:
+
+* Classic Burger × 2
+* French Fries × 2
+* Strawberry Milkshake × 2
+
+Order harus dapat dilacak sebagai satu order group.
+
+---
+
+# 22. ORDER NOTES & CUSTOMIZATION
+
+Buat support notes.
+
+Contoh:
+
+* No sugar.
+* Extra cheese.
+* No sauce.
+* Less ice.
+* Extra spicy.
+
+Phase 06:
+
+* Implementasikan order notes.
+* Implementasikan line item notes.
+* Implementasikan custom notes validation.
+* Notes dapat ditampilkan pada Chef UI.
+* Notes tidak boleh merusak menu item matching.
+
+Customization hanya boleh diterapkan jika menu mengizinkan.
+
+Jangan membuat arbitrary ingredient changes yang tidak didukung recipe system.
+
+---
+
+# 23. CANCEL & ERROR HANDLING
+
+Implementasikan cancellation system.
+
+Order cancellation rules:
+
+* Draft dapat dibatalkan.
+* Draft cancellation tidak menghasilkan kitchen ticket.
+* Confirmed order cancellation harus melalui OrderService.
+* Queue item harus dihapus atau ditandai cancelled.
+* Cancelled order tidak boleh diterima Chef.
+* Cancelled order tidak boleh matching dengan food.
+* Cancelled order tidak boleh muncul sebagai active order.
+* History tetap disimpan untuk game session.
+
+Handle errors:
+
+* Invalid menu ID.
+* Invalid recipe ID.
+* Invalid table ID.
+* Invalid customer ID.
+* Empty order.
+* Quantity zero.
+* Negative quantity.
+* Duplicate order.
+* Invalid status transition.
+* Table no longer occupied.
+* Queue insertion failure.
+* Matching failure.
+* Missing assets.
+* Invalid notes.
+* Missing recipe.
+
+Error tidak boleh menyebabkan game crash.
+
+---
+
+# 24. ORDER EVENT SYSTEM
+
+Integrasikan dengan existing event system.
+
+Jika event system Phase 04/05 tersedia, gunakan.
+
+Events:
+
+* MENU_OPENED
+* MENU_CLOSED
+* MENU_ITEM_SELECTED
+* MENU_ITEM_ADDED
+* MENU_ITEM_REMOVED
+* ORDER_DRAFT_CREATED
+* ORDER_DRAFT_UPDATED
+* ORDER_DRAFT_CANCELLED
+* ORDER_VALIDATED
+* ORDER_CONFIRMED
+* ORDER_CREATED
+* ORDER_QUEUED
+* ORDER_QUEUE_UPDATED
+* ORDER_ACCEPTED
+* ORDER_ITEM_STATUS_CHANGED
+* ORDER_CANCELLED
+* ORDER_MATCH_ATTEMPTED
+* ORDER_MATCHED
+* ORDER_MATCH_FAILED
+
+Event hanya dipicu ketika aksi benar-benar terjadi.
+
+Jangan emit duplicate events.
+
+Jangan trigger events setiap frame.
+
+---
+
+# 25. ORDER UI FOR WAITER
+
+Buat Order Taking Interface.
+
+UI harus memiliki:
+
+## Menu panel
+
+* Categories.
+* Menu cards.
+* Menu image.
+* Menu name.
+* Price.
+* Description.
+* Availability.
+
+## Cart panel
+
+* Selected items.
+* Quantity.
+* Plus button.
+* Minus button.
+* Remove button.
+* Line item total.
+* Order subtotal.
+* Notes.
+* Confirm button.
+* Cancel button.
+
+## Table information
+
+* Table number.
+* Customer count.
+* Customer group.
+* Waiter status.
+
+## Feedback
+
+* Item added.
+* Item removed.
+* Quantity changed.
+* Order confirmed.
+* Order rejected.
+* Order cancelled.
+
+UI harus dapat digunakan pada mobile landscape.
+
+Gunakan panel, modal, atau layout yang tidak menghalangi gameplay secara berlebihan.
+
+---
+
+# 26. CHEF ORDER QUEUE UI
+
+Buat kitchen order board.
+
+Visual style:
+
+* Modern cartoon kitchen.
+* Ticket cards.
+* Rounded cards.
+* Clear order hierarchy.
+* Readable typography.
+* Color-coded status.
+
+Order cards:
+
+* Order number.
+* Table number.
+* Time elapsed.
+* Item list.
+* Quantity.
+* Priority.
+* Status.
+
+Implementasikan:
+
+* Pending tab.
+* Active tab.
+* Completed tab framework.
+* Order detail.
+* Accept order.
+* Recipe detail.
+
+Order cards harus diperbarui melalui event system.
+
+Jangan refresh seluruh UI setiap frame.
+
+---
+
+# 27. GAMEPLAY FEEDBACK
+
+Ketika order dikonfirmasi:
+
+* Order ticket muncul.
+* Kitchen notification.
+* Chef dapat melihat ticket.
+* Order queue counter bertambah.
+* Table order indicator diperbarui.
+* Waiter menerima confirmation feedback.
+
+Contoh feedback:
+
+"ORDER #004 SENT TO KITCHEN!"
+
+"CHEF RECEIVED NEW ORDER!"
+
+"TABLE 03 — ORDER CONFIRMED"
+
+Gunakan feedback yang sesuai visual style game.
+
+Jangan menggunakan alert browser.
+
+---
+
+# 28. GAME SESSION DATA
+
+Semua order harus terhubung dengan game session.
+
+Implementasikan session-level tracking:
+
+* sessionId
+* orders
+* orderQueue
+* completedOrders
+* cancelledOrders
+* totalOrders
+* totalItemsOrdered
+* orderTime
+* averageOrderTime
+
+Jangan menyimpan data hanya pada UI component state.
+
+Gunakan centralized order data management.
+
+---
+
+# 29. MULTIPLAYER READY
+
+Phase 06 harus siap untuk multiplayer.
+
+Game hanya memiliki:
+
+* Player 1 Chef.
+* Player 2 Waiter.
+
+## Architecture requirements
+
+* Order creation centralized.
+* Order IDs unique.
+* Order state centralized.
+* Order queue centralized.
+* Order matching centralized.
+* Menu database shared.
+* Recipe database shared.
+* Order events structured.
+* Table association stable.
+
+Jika multiplayer backend belum tersedia:
+
+* Gunakan local game session service.
+* Buat service interface yang dapat dihubungkan ke server.
+* Jangan membuat fake multiplayer.
+* Jangan mengklaim order synchronization online telah berjalan.
+
+Ketika backend Phase 11/12 nanti tersedia, OrderService harus dapat menggunakan server-authoritative implementation tanpa rewrite seluruh UI.
+
+---
+
+# 30. DATA ARCHITECTURE
+
+Gunakan TypeScript interfaces/types yang jelas.
+
+Contoh conceptual types:
+
+MenuItem
+MenuCategory
+Ingredient
+Recipe
+RecipeIngredient
+OrderDraft
+Order
+OrderItem
+OrderItemStatus
+OrderStatus
+KitchenQueueItem
+CustomerOrderContext
+OrderMatchingResult
+
+Gunakan:
+
+* Type safety.
+* Enum atau union types.
+* Immutable data jika sesuai.
+* Centralized services.
+* Validation functions.
+* Structured events.
+
+Pisahkan:
+
+* UI.
+* Domain logic.
+* Data.
+* Service.
+* State management.
+
+Jangan memasukkan seluruh order logic ke Phaser Scene.
+
+---
+
+# 31. SUGGESTED FILE ARCHITECTURE
+
+Audit project terlebih dahulu.
+
+Jika struktur project mendukung, gunakan struktur modular seperti:
+
+src/
+├── systems/
+│   ├── menu/
+│   │   ├── MenuDatabase.ts
+│   │   ├── MenuService.ts
+│   │   ├── MenuCategory.ts
+│   │   └── MenuConfig.ts
+│   ├── recipe/
+│   │   ├── RecipeDatabase.ts
+│   │   ├── RecipeService.ts
+│   │   └── RecipeTypes.ts
+│   ├── orders/
+│   │   ├── OrderService.ts
+│   │   ├── OrderManager.ts
+│   │   ├── OrderDraft.ts
+│   │   ├── OrderStateMachine.ts
+│   │   ├── OrderQueue.ts
+│   │   ├── OrderMatchingService.ts
+│   │   ├── OrderValidator.ts
+│   │   ├── OrderTypes.ts
+│   │   └── OrderConfig.ts
+├── ui/
+│   ├── menu/
+│   │   ├── MenuPanel.ts
+│   │   ├── MenuCard.ts
+│   │   └── OrderCart.ts
+│   ├── waiter/
+│   │   └── OrderTakingUI.ts
+│   └── chef/
+│       ├── KitchenOrderBoard.ts
+│       ├── KitchenOrderCard.ts
+│       └── RecipePanel.ts
+
+Ini hanya rekomendasi.
+
+Gunakan architecture existing project jika sudah memiliki pola modular yang lebih baik.
+
+Jangan membuat duplicate service.
+
+---
+
+# 32. PERFORMANCE & MOBILE
+
+Optimalkan untuk Android.
+
+Requirements:
+
+* Responsive UI.
+* Mobile landscape support.
+* Touch-friendly controls.
+* Buttons tidak terlalu kecil.
+* Scroll menu lancar.
+* Order cards efisien.
+* Tidak ada excessive DOM updates.
+* Tidak ada excessive game object creation.
+* Tidak ada memory leak.
+* UI update event-driven.
+* Menu panel tidak menyebabkan FPS drop.
+* Game world tetap responsif.
+
+Target gameplay smooth pada Android mid-range.
+
+---
+
+# 33. TESTING
+
+Buat automated tests.
+
+## A. Menu Database
+
+Test:
+
+* Menu IDs unique.
+* Menu items valid.
+* Menu categories valid.
+* Price valid.
+* Recipe references valid.
+* Menu availability.
+* Missing recipe handling.
+
+## B. Recipe System
+
+Test:
+
+* Recipe exists.
+* Ingredients valid.
+* Ingredient quantity valid.
+* Menu recipe matching.
+* Recipe preview data.
+* Missing ingredients.
+* Invalid recipe IDs.
+
+## C. Draft System
+
+Test:
+
+* Create draft.
+* Add menu item.
+* Remove menu item.
+* Change quantity.
+* Change notes.
+* Calculate subtotal.
+* Calculate total.
+* Cancel draft.
+* Confirm draft.
+
+## D. Order Validation
+
+Test:
+
+* Empty order rejected.
+* Valid order accepted.
+* Invalid menu rejected.
+* Unavailable menu rejected.
+* Invalid quantity rejected.
+* Invalid table rejected.
+* Invalid customer rejected.
+* Table no longer occupied rejected.
+* Duplicate confirmation prevented.
+
+## E. Order Queue
+
+Test:
+
+* Order inserted.
+* Queue position correct.
+* Multiple orders.
+* FIFO behavior.
+* Queue updates.
+* Accept order.
+* Accepted order removed from pending.
+* Accepted order remains tracked.
+* Cancelled order removed from active queue.
+
+## F. Order State Machine
+
+Test:
+
+* Valid transitions.
+* Invalid transitions.
+* Draft cancellation.
+* Confirmed order.
+* Queued order.
+* Accepted order.
+* Duplicate transitions prevented.
+
+## G. Order Matching
+
+Test:
+
+* Correct order match.
+* Correct menu item match.
+* Correct table match.
+* Correct quantity.
+* Wrong order rejected.
+* Wrong table rejected.
+* Wrong item rejected.
+* Duplicate food rejected.
+* Cancelled order rejected.
+* Completed order rejected.
+
+## H. UI Integration
+
+Test:
+
+* Menu opens.
+* Category selection.
+* Item selection.
+* Quantity changes.
+* Cart updates.
+* Confirmation.
+* Ticket creation.
+* Chef queue updates.
+* Chef accepts order.
+* Recipe preview opens.
+* UI remains responsive.
+
+## I. Previous Phases
+
+Validate:
+
+* Phase 01 remains functional.
+* Phase 02 remains functional.
+* Phase 03 remains functional.
+* Phase 04 remains functional.
+* Phase 05 remains functional.
+* Customers spawn.
+* Customers sit.
+* Table occupancy works.
+* Customer AI remains functional.
+* Player movement remains functional.
+
+---
+
+# 34. GAMEPLAY VALIDATION SCENARIOS
+
+Jalankan skenario nyata di game.
+
+## SCENARIO 1 — SINGLE ORDER
+
+1. Start game.
+2. Customer masuk.
+3. Customer mendapatkan meja.
+4. Waiter mendekati customer.
+5. Waiter membuka menu.
+6. Pilih Classic Burger.
+7. Tambahkan French Fries.
+8. Tambahkan Iced Tea.
+9. Ubah quantity.
+10. Lihat cart.
+11. Confirm order.
+12. Ticket muncul di kitchen.
+13. Chef membuka ticket.
+14. Chef melihat recipe.
+15. Chef menerima order.
+
+Expected result:
+
+Order valid dan tercatat.
+
+---
+
+## SCENARIO 2 — MULTIPLE TABLE ORDERS
+
+1. Customer Table 01 memesan.
+2. Confirm Order 001.
+3. Customer Table 03 memesan.
+4. Confirm Order 002.
+5. Customer Table 04 memesan.
+6. Confirm Order 003.
+7. Chef membuka queue.
+
+Expected result:
+
+Ketiga order tampil dengan table ID, item, quantity, dan order number yang benar.
+
+Tidak ada order yang tertukar.
+
+---
+
+## SCENARIO 3 — EDIT ORDER DRAFT
+
+1. Open menu.
+2. Tambahkan 2 Classic Burger.
+3. Tambahkan 1 Iced Tea.
+4. Kurangi Classic Burger menjadi 1.
+5. Hapus Iced Tea.
+6. Tambahkan Cheese Burger.
+7. Edit notes.
+8. Confirm order.
+
+Expected result:
+
+Hanya item yang tersisa di draft yang masuk ke kitchen.
+
+---
+
+## SCENARIO 4 — INVALID ORDER
+
+1. Buka order draft.
+2. Jangan memilih item.
+3. Tekan confirm.
+
+Expected result:
+
+Order ditolak.
+
+Tidak ada ticket.
+
+Tidak ada queue entry.
+
+UI menampilkan feedback.
+
+---
+
+## SCENARIO 5 — MULTIPLE ITEMS MATCHING
+
+Buat order:
+
+* Classic Burger × 2.
+* French Fries × 1.
+* Iced Tea × 2.
+
+Simulasikan food matching test data.
+
+Expected result:
+
+* Food Burger hanya match dengan Burger order item.
+* French Fries match dengan French Fries order item.
+* Iced Tea match dengan Iced Tea order item.
+* Table association benar.
+* Quantity tidak melebihi request.
+* Duplicate item matching ditolak.
+
+Jangan mengimplementasikan cooking mechanic palsu.
+
+---
+
+# 35. VALIDATION & BUILD
+
+Setelah implementasi:
+
+1. Audit semua files.
+2. Jalankan TypeScript check.
+3. Jalankan test.
+4. Jalankan integration test.
+5. Jalankan production build.
+6. Periksa runtime error.
+7. Periksa browser console.
+8. Periksa invalid imports.
+9. Periksa asset paths.
+10. Periksa order state transitions.
+11. Periksa duplicate order.
+12. Periksa duplicate event.
+13. Periksa mobile UI.
+14. Periksa performance.
+
+Jika ditemukan error:
+
+* Cari penyebab.
+* Perbaiki source code.
+* Jalankan test ulang.
+* Jalankan build ulang.
+
+Jangan melaporkan build berhasil jika belum benar-benar dijalankan.
+
+---
+
+# 36. DEFINITION OF DONE
+
+Phase 06 hanya dianggap selesai jika:
+
+* [ ] Menu database berfungsi.
+* [ ] Menu category berfungsi.
+* [ ] Menu selection berfungsi.
+* [ ] Menu availability berfungsi.
+* [ ] Recipe database berfungsi.
+* [ ] Recipe preview berfungsi.
+* [ ] Order draft berfungsi.
+* [ ] Add item berfungsi.
+* [ ] Remove item berfungsi.
+* [ ] Quantity berfungsi.
+* [ ] Notes berfungsi.
+* [ ] Price calculation berfungsi.
+* [ ] Order validation berfungsi.
+* [ ] Order confirmation berfungsi.
+* [ ] Order ticket dibuat.
+* [ ] Order number unik.
+* [ ] Order queue berfungsi.
+* [ ] Multiple orders dapat masuk.
+* [ ] Multiple tables dapat memesan.
+* [ ] Chef order board berfungsi.
+* [ ] Chef dapat menerima order.
+* [ ] Order status machine berfungsi.
+* [ ] Order item tracking berfungsi.
+* [ ] Order matching service berfungsi.
+* [ ] Table validation berfungsi.
+* [x] Customer group orders didukung.
+* [ ] Cancellation rules berfungsi.
+* [ ] Phase 01–05 tidak rusak.
+* [ ] Tidak ada critical runtime error.
+* [ ] TypeScript check berhasil.
+* [ ] Tests berhasil.
+* [ ] Production build berhasil.
+
+---
+
+# 37. FINAL REPORT
+
+Setelah implementasi selesai, berikan laporan:
+
+## 1. Implementation Summary
+
+Fitur yang benar-benar selesai.
+
+## 2. Menu System
+
+Daftar menu dan kategori yang dibuat.
+
+## 3. Recipe System
+
+Daftar resep dan integrasi.
+
+## 4. Order Draft
+
+Jelaskan proses pembuatan draft dan perubahan item.
+
+## 5. Order System
+
+Jelaskan order model, order ID, order status, dan validation.
+
+## 6. Kitchen Queue
+
+Jelaskan queue behavior, FIFO, dan order acceptance.
+
+## 7. Order Matching
+
+Jelaskan cara food item nantinya dicocokkan dengan order.
+
+## 8. UI
+
+Jelaskan Menu UI, Waiter UI, Chef UI.
+
+## 9. New Files
+
+Daftar file baru.
+
+## 10. Modified Files
+
+Daftar file yang diubah.
+
+## 11. Tests
+
+Laporkan test yang benar-benar dijalankan dan hasilnya.
+
+## 12. Build
+
+Laporkan status TypeScript, test, dan production build.
+
+## 13. Known Issues
+
+Tuliskan bug atau fitur yang belum selesai.
+
+## 14. How to Play
+
+Berikan cara mengetes order system di game.
+
+---
+
+# FINAL INSTRUCTION
+
+Mulai dengan memeriksa project LOVE KITCHEN yang saat ini tersedia.
+
+Jangan membuat project baru.
+
+Jangan menghapus atau merusak Phase 01–05.
+
+Implementasikan Phase 06 langsung pada source code project yang sama.
+
+Gunakan architecture yang sudah tersedia.
+
+Implementasikan fitur nyata, bukan simulasi UI.
+
+Integrasikan Menu System, Recipe System, Order Draft, Order Queue, Order Matching, Waiter UI, Chef UI, Table Validation, dan Customer Order Context.
+
+Lakukan testing dan production build.
+
+Perbaiki error sampai validasi berhasil.
+
+Jangan berhenti pada planning atau penulisan code yang belum terintegrasi.
+
+**Kerjakan Phase 06 secara langsung sampai seluruh fitur yang dapat diimplementasikan pada tahap ini berfungsi dengan baik, terintegrasi, dan siap dilanjutkan ke Phase 07: Cooking & Kitchen System.**

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF8A7A" />
+      <stop offset="100%" stop-color="#FF5A6E" />
+    </linearGradient>
+    <linearGradient id="hat" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#F7ECE4" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)" />
+  <circle cx="256" cy="268" r="168" fill="#FFF6EC" />
+  <path
+    d="M180 245 C145 245 130 200 165 178 C170 135 225 120 256 144 C287 120 342 135 347 178 C382 200 367 245 332 245 L332 282 L180 282 Z"
+    fill="url(#hat)"
+    stroke="#4A2B1D"
+    stroke-width="14"
+    stroke-linejoin="round"
+  />
+  <rect x="180" y="254" width="152" height="32" rx="8" fill="#8C5338" stroke="#4A2B1D" stroke-width="10" />
+  <path
+    d="M256 385 C256 385 186 340 186 300 C186 278 204 265 224 265 C238 265 250 273 256 284 C262 273 274 265 288 265 C308 265 326 278 326 300 C326 340 256 385 256 385 Z"
+    fill="#FF5A6E"
+    stroke="#4A2B1D"
+    stroke-width="12"
+    stroke-linejoin="round"
+  />
+</svg>

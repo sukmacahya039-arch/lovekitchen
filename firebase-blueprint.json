@@ -1,0 +1,202 @@
+{
+  "entities": {
+    "PlayerProfile": {
+      "title": "PlayerProfile",
+      "description": "Authenticated player profile, role preference, audio settings, and career statistics.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "preferredRole": {
+          "type": "string",
+          "enum": ["chef", "waiter"]
+        },
+        "bestScore": {
+          "type": "number"
+        },
+        "gamesPlayed": {
+          "type": "number"
+        },
+        "totalOrdersServed": {
+          "type": "number"
+        },
+        "masterVolume": {
+          "type": "number"
+        },
+        "musicVolume": {
+          "type": "number"
+        },
+        "sfxVolume": {
+          "type": "number"
+        },
+        "muted": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "preferredRole",
+        "bestScore",
+        "gamesPlayed",
+        "totalOrdersServed",
+        "masterVolume",
+        "musicVolume",
+        "sfxVolume",
+        "muted",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "MatchRecord": {
+      "title": "MatchRecord",
+      "description": "Completed Love Kitchen co-op restaurant shift result owned by a player.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "roomCode": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 12
+        },
+        "partnerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "role": {
+          "type": "string",
+          "enum": ["chef", "waiter"]
+        },
+        "score": {
+          "type": "number"
+        },
+        "ordersCompleted": {
+          "type": "number"
+        },
+        "ordersBurned": {
+          "type": "number"
+        },
+        "stars": {
+          "type": "number"
+        },
+        "durationSeconds": {
+          "type": "number"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["coop", "practice"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "roomCode",
+        "partnerName",
+        "role",
+        "score",
+        "ordersCompleted",
+        "ordersBurned",
+        "stars",
+        "durationSeconds",
+        "mode",
+        "createdAt"
+      ]
+    },
+    "LeaderboardEntry": {
+      "title": "LeaderboardEntry",
+      "description": "Public high-score entry (no PII) for cooperative shift rankings.",
+      "type": "object",
+      "properties": {
+        "playerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "partnerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "role": {
+          "type": "string",
+          "enum": ["chef", "waiter"]
+        },
+        "score": {
+          "type": "number"
+        },
+        "ordersCompleted": {
+          "type": "number"
+        },
+        "stars": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "playerId",
+        "displayName",
+        "partnerName",
+        "role",
+        "score",
+        "ordersCompleted",
+        "stars",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/players/{playerId}": {
+      "schema": {
+        "$ref": "#/entities/PlayerProfile"
+      },
+      "description": "Owner-only player profile, audio preferences, and cumulative stats."
+    },
+    "/players/{playerId}/matches/{matchId}": {
+      "schema": {
+        "$ref": "#/entities/MatchRecord"
+      },
+      "description": "Match history subcollection owned by the parent player."
+    },
+    "/leaderboard/{entryId}": {
+      "schema": {
+        "$ref": "#/entities/LeaderboardEntry"
+      },
+      "description": "Public non-PII shift high-score leaderboard entries."
+    }
+  }
+}

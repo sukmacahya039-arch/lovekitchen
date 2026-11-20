@@ -1,0 +1,1707 @@
+# GOOGLE AI STUDIO — LOVE KITCHEN
+## PHASE 05: CUSTOMER & TABLE SYSTEM
+
+Implementasikan Phase 05 dari proyek **LOVE KITCHEN – 2.5D CO-OP RESTAURANT RUSH**.
+
+Pada tahap ini, buat sistem simulasi pelanggan dan meja restoran yang benar-benar berfungsi, interaktif, memiliki AI state machine, terintegrasi dengan sistem movement, pathfinding, collision, interaction, dan restaurant map dari Phase 01–04.
+
+Jangan hanya membuat desain, mockup, pseudocode, atau dokumentasi.
+
+**Tugas utama adalah menulis, mengimplementasikan, mengintegrasikan, menguji, dan memastikan semua fitur berjalan di dalam project yang sudah ada.**
+
+---
+
+# 1. PROJECT CONTEXT
+
+LOVE KITCHEN adalah game restoran 2.5D multiplayer cooperative online untuk 2 pemain.
+
+### Player roles
+
+**Player 1 — Chef (Male)**
+
+- Memasak makanan.
+- Mengelola beberapa pesanan.
+- Mengoper makanan ke food counter.
+- Memiliki akses interaksi ke area kitchen.
+
+**Player 2 — Waiter (Female)**
+
+- Menyambut pelanggan.
+- Mengelola meja.
+- Mengambil pesanan.
+- Mengantarkan makanan.
+- Membersihkan meja.
+- Melayani pelanggan.
+
+### Existing systems from previous phases
+
+Phase 01–04 sudah menjadi fondasi project dan harus dipertahankan.
+
+Integrasikan dengan sistem yang sudah ada:
+
+- Project architecture.
+- Game initialization.
+- Phaser game engine.
+- TypeScript.
+- Vite.
+- HTML5 Canvas.
+- PWA structure.
+- Restaurant map.
+- Isometric coordinate system.
+- Tile system.
+- Collision system.
+- Walkable area.
+- Pathfinding.
+- Character movement.
+- Tap-to-move.
+- Keyboard movement.
+- Interaction framework.
+- Depth sorting.
+- Mobile controls.
+- Character animation.
+- Camera system.
+
+Jangan membuat sistem alternatif yang menduplikasi fitur yang sudah tersedia.
+
+Sebelum coding, lakukan audit project terlebih dahulu.
+
+---
+
+# 2. OBJECTIVE PHASE 05
+
+Implementasikan sistem pelanggan dan meja restoran secara lengkap.
+
+Pelanggan harus dapat:
+
+1. Muncul dari entrance restoran.
+2. Berjalan menuju antrean.
+3. Mengantre apabila belum ada meja tersedia.
+4. Mengecek ketersediaan meja.
+5. Memilih meja yang sesuai.
+6. Berjalan menuju meja menggunakan pathfinding.
+7. Menempati meja.
+8. Duduk dengan animasi.
+9. Menunggu Waiter.
+10. Memulai proses makan setelah mendapatkan makanan.
+11. Menyelesaikan waktu makan.
+12. Meminta bill apabila sistem pembayaran sudah tersedia.
+13. Meninggalkan meja.
+14. Berjalan menuju exit.
+15. Menghilang setelah keluar restoran.
+16. Membuat meja menjadi dirty apabila pelanggan telah selesai.
+
+Seluruh proses harus memiliki state yang jelas dan tidak boleh terjadi perpindahan state secara acak.
+
+---
+
+# 3. CUSTOMER AI STATE MACHINE
+
+Buat sistem Customer AI menggunakan finite state machine (FSM).
+
+Gunakan state yang terpisah, modular, dan mudah dikembangkan.
+
+Minimal implementasikan state berikut:
+
+- SPAWNING
+- ENTERING
+- QUEUING
+- SEARCHING_TABLE
+- WALKING_TO_TABLE
+- SEATING
+- SEATED
+- WAITING_FOR_WAITER
+- WAITING_FOR_ORDER
+- WAITING_FOR_FOOD
+- EATING
+- WAITING_FOR_BILL
+- LEAVING_TABLE
+- WALKING_TO_EXIT
+- EXITING
+- COMPLETED
+- ANGRY
+- CANCELLED
+
+Tidak semua state harus aktif pada Phase 05 apabila order dan billing system belum tersedia.
+
+State yang belum didukung sistem sebelumnya harus dipersiapkan secara modular, bukan dipaksakan dengan fitur palsu.
+
+### State flow
+
+Implementasikan alur utama:
+
+SPAWNING
+↓
+ENTERING
+↓
+QUEUING (jika perlu)
+↓
+SEARCHING_TABLE
+↓
+WALKING_TO_TABLE
+↓
+SEATING
+↓
+SEATED
+↓
+WAITING_FOR_WAITER
+↓
+WAITING_FOR_ORDER
+↓
+WAITING_FOR_FOOD
+↓
+EATING
+↓
+WAITING_FOR_BILL
+↓
+LEAVING_TABLE
+↓
+WALKING_TO_EXIT
+↓
+EXITING
+↓
+COMPLETED
+
+Buat transition rules yang jelas.
+
+Setiap state harus memiliki:
+
+- State entry logic.
+- State update logic.
+- State exit logic.
+- Transition validation.
+- Timeout handling jika relevan.
+- Cancellation handling.
+
+Hindari state transition yang dipanggil berulang-ulang setiap frame.
+
+---
+
+# 4. CUSTOMER SPAWNER SYSTEM
+
+Buat CustomerSpawner yang mengatur kemunculan pelanggan.
+
+### Requirements
+
+- Pelanggan masuk melalui entrance yang ditentukan.
+- Entrance harus mengikuti layout restoran yang sudah tersedia.
+- Spawn tidak boleh terjadi di posisi yang tidak dapat dilalui.
+- Spawn tidak boleh menumpuk pada satu titik.
+- Spawn rate dapat dikonfigurasi.
+- Jumlah pelanggan maksimum dapat dikonfigurasi.
+- Spawn dapat dinonaktifkan sementara.
+- Spawn dapat diaktifkan kembali.
+- Pelanggan baru tidak muncul jika kapasitas restoran penuh.
+- Spawning harus memiliki sistem cooldown.
+- Spawn dapat mengikuti level, difficulty, atau progression di masa mendatang.
+
+### Configurable parameters
+
+Buat configuration object, misalnya:
+
+- `spawnInterval`
+- `maxCustomers`
+- `maxQueueSize`
+- `minSpawnInterval`
+- `customerSpeed`
+- `queueSpacing`
+- `tableSearchTimeout`
+- `customerPatience`
+- `eatingDuration`
+- `exitDelay`
+
+Nilai harus configurable, tidak hardcoded di banyak file.
+
+### Spawn behavior
+
+Ketika pelanggan muncul:
+
+1. Pilih customer profile.
+2. Buat customer instance.
+3. Assign unique ID.
+4. Tentukan spawn position.
+5. Tentukan destination.
+6. Jalankan entrance movement.
+7. Masukkan ke customer management system.
+
+Jangan spawn customer jika restaurant capacity sudah penuh.
+
+---
+
+# 5. CUSTOMER CHARACTER SYSTEM
+
+Buat sistem karakter pelanggan dengan variasi visual.
+
+### Customer appearance
+
+Pelanggan dapat memiliki variasi:
+
+- Pria.
+- Wanita.
+- Anak-anak, jika sesuai dengan visual game.
+- Berbagai warna rambut.
+- Berbagai pakaian.
+- Berbagai skin tone.
+- Berbagai aksesoris.
+- Ekspresi wajah.
+
+Gunakan asset yang sudah ada jika tersedia.
+
+Jika belum tersedia:
+
+- Gunakan placeholder visual yang konsisten dengan game.
+- Gunakan sprite, vector graphics, atau procedural character renderer.
+- Jangan membuat karakter berupa lingkaran polos.
+- Jangan merusak visual style 2.5D.
+- Jangan mengandalkan asset yang belum tersedia di project.
+
+Buat customer appearance variation menggunakan data konfigurasi.
+
+Contoh struktur:
+
+CustomerProfile:
+
+- id
+- name
+- appearanceId
+- genderPresentation
+- hairStyle
+- hairColor
+- outfitId
+- skinTone
+- accessories
+- movementSpeed
+- patience
+- eatingDuration
+- preferredTableType
+
+Semua properti harus menyesuaikan struktur project yang sebenarnya.
+
+---
+
+# 6. CUSTOMER MOVEMENT & PATHFINDING
+
+Integrasikan dengan movement system Phase 04.
+
+Pelanggan harus menggunakan sistem pathfinding yang sama atau kompatibel dengan sistem movement yang telah ada.
+
+### Movement requirements
+
+- Berjalan dari entrance.
+- Berjalan menuju antrean.
+- Berjalan menuju meja.
+- Berjalan menuju exit.
+- Menghindari obstacle.
+- Tidak menembus meja.
+- Tidak menembus counter.
+- Tidak menembus wall.
+- Tidak berjalan di area non-walkable.
+- Tidak menumpuk pada satu titik.
+- Tidak bergerak secara teleport.
+- Memiliki pergerakan yang smooth.
+- Berhenti pada posisi tujuan.
+- Menghadap arah yang benar ketika berhenti.
+
+### Pathfinding
+
+Pastikan:
+
+- Destination adalah walkable.
+- Pathfinding dapat menemukan rute.
+- Jika route blocked, customer mencoba mencari route alternatif.
+- Jika tidak ada route, customer menunggu atau memilih alternatif.
+- Dynamic obstacles diperhitungkan jika pathfinding sebelumnya mendukung.
+- Customer tidak menyebabkan pathfinding error.
+- Customer tidak terjebak di obstacle.
+- Customer dapat dibatalkan atau diarahkan ulang.
+
+### Movement behavior
+
+Implementasikan:
+
+- Walking speed.
+- Directional animation.
+- Smooth movement.
+- Turn direction.
+- Stopping behavior.
+- Path cancellation.
+- Destination recalculation.
+- Collision handling.
+
+Jangan membuat movement pelanggan dengan teleport position.
+
+---
+
+# 7. CUSTOMER QUEUE SYSTEM
+
+Implementasikan antrean pelanggan ketika meja tidak tersedia.
+
+Buat QueueManager yang terintegrasi dengan CustomerSpawner dan TableManager.
+
+### Queue behavior
+
+Ketika pelanggan masuk:
+
+1. Periksa meja yang tersedia.
+2. Jika meja tersedia, customer dapat langsung menuju meja.
+3. Jika tidak tersedia, customer masuk queue.
+4. Customer bergerak menuju queue position.
+5. Customer menempati posisi antrean secara berurutan.
+6. Customer berikutnya menempati posisi antrean setelah posisi depan kosong.
+7. Customer tidak saling bertumpuk.
+8. Queue position dapat diperbarui secara dinamis.
+
+### Queue position
+
+Setiap customer dalam antrean memiliki:
+
+- Queue index.
+- Queue target position.
+- Queue movement.
+- Queue status.
+
+Ketika posisi antrean berubah:
+
+- Customer memperbarui destination.
+- Customer bergerak ke posisi baru.
+- Tidak boleh teleport.
+- Jarak antar pelanggan tetap konsisten.
+
+### Queue capacity
+
+Konfigurasikan:
+
+- Maximum queue size.
+- Queue spacing.
+- Queue timeout.
+- Overflow behavior.
+
+Jika antrean penuh:
+
+- Jangan spawn pelanggan baru jika aturan capacity mengharuskan berhenti.
+- Atau gunakan behavior yang dapat dikonfigurasi.
+- Jangan membuat pelanggan muncul lalu menghilang tanpa alasan.
+
+### Queue patience
+
+Pelanggan yang mengantre dapat kehilangan kesabaran.
+
+Ketika patience habis:
+
+- Customer menunjukkan ekspresi kecewa.
+- Customer keluar dari antrean.
+- Customer bergerak menuju exit.
+- Queue position pelanggan lain diperbarui.
+- Customer tidak mengambil meja.
+- Statistik abandoned customers diperbarui.
+
+---
+
+# 8. TABLE MANAGEMENT SYSTEM
+
+Implementasikan TableManager.
+
+TableManager menjadi pusat pengelolaan meja restoran.
+
+Setiap meja harus memiliki:
+
+- Unique table ID.
+- Position.
+- Table type.
+- Capacity.
+- Occupancy.
+- Status.
+- Assigned customers.
+- Reservation state jika dibutuhkan di masa depan.
+- Cleaning state.
+- Interaction position.
+- Dining position.
+- Approach positions.
+
+### Table states
+
+Implementasikan:
+
+- AVAILABLE
+- RESERVED
+- OCCUPIED
+- WAITING_FOR_ORDER
+- WAITING_FOR_FOOD
+- EATING
+- WAITING_FOR_BILL
+- DIRTY
+- CLEANING
+- DISABLED
+
+State harus memiliki transition validation.
+
+Tidak boleh:
+
+- Meja DIRTY dianggap AVAILABLE.
+- Meja OCCUPIED menerima customer baru.
+- Meja CLEANING menerima customer.
+- Meja DISABLED menerima customer.
+- Table occupancy melebihi capacity.
+
+---
+
+# 9. TABLE CAPACITY
+
+Setiap meja memiliki kapasitas berbeda.
+
+Contoh:
+
+- Table 01: 2 seats.
+- Table 02: 2 seats.
+- Table 03: 2 seats.
+- Table 04: 4 seats.
+- Table 05: 4 seats.
+- Table 06: 4 seats.
+
+Gunakan data meja yang sudah ada pada map.
+
+Jika meja belum memiliki metadata capacity, tambahkan konfigurasi tanpa mengubah layout yang sudah dibuat.
+
+### Customer group
+
+Buat dukungan customer group.
+
+Contoh:
+
+- 1 customer.
+- 2 customers.
+- 3 customers.
+- 4 customers.
+
+Ketika customer group masuk:
+
+1. Tentukan group size.
+2. Cari meja dengan kapasitas cukup.
+3. Pilih meja yang sesuai.
+4. Assign seluruh customer group ke meja yang sama.
+5. Simpan group ID.
+6. Pastikan semua customer menuju meja yang sama.
+7. Jika meja tidak tersedia, group mengantre sebagai satu grup.
+8. Jangan memisahkan grup kecuali sistem mendukung split secara eksplisit.
+
+Phase 05 dapat menggunakan group size sederhana, tetapi arsitektur harus siap untuk party system yang lebih kompleks.
+
+---
+
+# 10. TABLE SELECTION AI
+
+Buat algoritma pemilihan meja.
+
+Customer tidak boleh memilih meja secara acak tanpa mempertimbangkan kondisi meja.
+
+Table selection harus memeriksa:
+
+- Table availability.
+- Table capacity.
+- Table status.
+- Table accessibility.
+- Distance from customer.
+- Pathfinding availability.
+- Customer group size.
+- Preferred table type.
+- Queue condition.
+
+### Table selection algorithm
+
+Prioritaskan:
+
+1. Meja AVAILABLE.
+2. Kapasitas cukup.
+3. Rute dapat dilalui.
+4. Jarak perjalanan paling optimal.
+5. Tidak ada customer lain yang sedang reservasi meja.
+6. Tidak ada konflik assignment.
+
+Gunakan scoring system apabila sesuai.
+
+Contoh:
+
+Table score:
+
+- Distance score.
+- Capacity fit score.
+- Accessibility score.
+- Reservation penalty.
+- Congestion penalty.
+
+Pilih meja dengan score terbaik.
+
+Jangan memilih meja yang sudah diassign kepada customer lain.
+
+---
+
+# 11. TABLE RESERVATION & ASSIGNMENT LOCK
+
+Buat sistem table reservation sederhana.
+
+Ketika Customer AI memilih meja:
+
+1. TableManager memvalidasi status.
+2. Meja di-lock sementara.
+3. Customer atau customer group mendapat assignment.
+4. Table tidak boleh dipilih customer lain.
+5. Customer mulai bergerak menuju meja.
+6. Jika movement gagal, reservation dapat dilepas.
+7. Jika customer dibatalkan, reservation dapat dilepas.
+8. Jika customer mencapai meja, meja berubah menjadi OCCUPIED.
+9. Reservation lock harus memiliki timeout.
+
+Pencegahan race condition harus menjadi perhatian.
+
+Untuk multiplayer, jangan membuat dua customer atau dua sistem mengklaim meja yang sama.
+
+Gunakan atomic operation atau centralized manager sesuai arsitektur project.
+
+---
+
+# 12. CUSTOMER WALK TO TABLE
+
+Ketika meja sudah dipilih:
+
+1. Customer menerima assigned table.
+2. Customer mendapatkan approach position.
+3. Customer menghitung path.
+4. Customer berjalan menuju meja.
+5. Customer berhenti pada posisi approach.
+6. Customer menghadap posisi duduk.
+7. Customer menjalankan seating animation.
+8. Customer memasuki seated state.
+9. Table occupancy diperbarui.
+
+### Failure handling
+
+Jika customer gagal mencapai meja:
+
+- Jangan teleport.
+- Jangan langsung mengubah status menjadi OCCUPIED.
+- Coba route recalculation.
+- Jika gagal, lepaskan reservation.
+- Cari meja lain jika tersedia.
+- Jika tidak tersedia, masuk antrean atau exit sesuai aturan.
+
+---
+
+# 13. SEATING SYSTEM
+
+Implementasikan sistem duduk pelanggan.
+
+Setiap meja memiliki seating positions yang dapat dikonfigurasi.
+
+### Seating requirements
+
+- Seat position.
+- Seat direction.
+- Seat index.
+- Seat occupancy.
+- Customer assignment.
+- Seat visual offset.
+
+Customer group harus menggunakan seat yang berbeda di meja yang sama.
+
+### Seating behavior
+
+Ketika customer mencapai meja:
+
+1. Cari seat kosong.
+2. Assign seat.
+3. Validasi seat.
+4. Customer berhenti.
+5. Customer menghadap arah yang sesuai.
+6. Customer memainkan animasi duduk.
+7. Customer masuk ke seated state.
+
+### Visual
+
+Customer yang duduk harus terlihat benar secara visual.
+
+- Sprite tidak boleh berdiri jika state duduk.
+- Posisi harus sejajar dengan meja.
+- Character feet anchor disesuaikan.
+- Depth sorting tetap benar.
+- Tidak menembus meja.
+- Tidak terlalu jauh dari meja.
+- Tidak terlihat melayang.
+
+Jika sprite sitting belum tersedia, buat fallback animation yang sederhana tetapi konsisten.
+
+Jangan menggunakan asset palsu yang tidak tersedia.
+
+---
+
+# 14. CUSTOMER ANIMATION
+
+Integrasikan animation system dari Phase 02/04.
+
+Minimal dukung:
+
+- Idle.
+- Walk.
+- Sit.
+- Sitting idle.
+- Eating.
+- Happy.
+- Neutral.
+- Impatient.
+- Angry.
+- Stand up.
+- Walk away.
+
+Gunakan animation state mapping.
+
+Contoh:
+
+ENTERING → WALK
+
+WALKING_TO_TABLE → WALK
+
+SEATING → SIT
+
+SEATED → SITTING_IDLE
+
+EATING → EAT
+
+ANGRY → ANGRY
+
+LEAVING_TABLE → STAND_UP
+
+WALKING_TO_EXIT → WALK
+
+EXITING → EXIT ANIMATION
+
+Jika animation asset belum tersedia:
+
+- Gunakan fallback.
+- Jangan membuat crash.
+- Gunakan sprite yang sudah tersedia.
+- Gunakan procedural animation sederhana jika memungkinkan.
+
+---
+
+# 15. CUSTOMER EXPRESSIONS & VISUAL FEEDBACK
+
+Pelanggan harus memiliki ekspresi yang dapat menunjukkan kondisi mereka.
+
+### Expression states
+
+- HAPPY
+- NORMAL
+- WAITING
+- IMPATIENT
+- ANGRY
+- SATISFIED
+- DISAPPOINTED
+
+### Visual feedback
+
+Gunakan:
+
+- Face expression.
+- Thought bubble.
+- Small icon.
+- Patience indicator.
+- Heart.
+- Timer.
+- Animated reaction.
+
+Contoh:
+
+Customer baru masuk:
+"Hi!"
+
+Customer menemukan meja:
+"Meja kosong!"
+
+Customer menunggu:
+"Pesan dulu ya..."
+
+Customer terlalu lama menunggu:
+"Sudah lama nih..."
+
+Customer patience hampir habis:
+"😤"
+
+Customer selesai makan:
+"Enak banget!"
+
+Pastikan feedback tidak menutupi gameplay.
+
+---
+
+# 16. CUSTOMER PATIENCE SYSTEM
+
+Implementasikan patience system.
+
+Setiap pelanggan memiliki patience duration.
+
+Patience dapat dipisahkan menjadi:
+
+- Queue patience.
+- Waiter patience.
+- Food patience.
+
+Phase 05 minimal implementasikan queue patience dan waiting patience framework.
+
+### Patience behavior
+
+- Patience berkurang ketika pelanggan menunggu.
+- Patience dapat dikonfigurasi per customer profile.
+- Patience tidak boleh negatif tanpa batas.
+- Patience timer hanya aktif pada state yang relevan.
+- Patience tidak aktif saat customer walking.
+- Patience dapat dihentikan ketika state berubah.
+
+### Visual indicator
+
+Buat indicator yang dapat menampilkan:
+
+- Progress bar.
+- Color progression.
+- Icon emotion.
+
+Color progression:
+
+- Hijau: aman.
+- Kuning: mulai tidak sabar.
+- Oranye: kesabaran menipis.
+- Merah: hampir marah.
+
+Jangan gunakan color progression saja; sertakan perubahan ekspresi.
+
+---
+
+# 17. TABLE OCCUPANCY SYSTEM
+
+Setiap meja harus memiliki occupancy tracking yang akurat.
+
+Contoh:
+
+Table 01
+
+Capacity: 2
+
+Occupied: 1
+
+Available seats: 1
+
+Table 04
+
+Capacity: 4
+
+Occupied: 3
+
+Available seats: 1
+
+Implementasikan:
+
+- Occupancy count.
+- Assigned customer IDs.
+- Assigned group ID.
+- Available seats.
+- Table status.
+
+Occupancy harus berubah secara atomik ketika customer:
+
+- Assign.
+- Sit.
+- Stand up.
+- Leave.
+
+Jangan sampai occupancy menjadi negatif.
+
+Jangan sampai customer tercatat di dua meja sekaligus.
+
+---
+
+# 18. CUSTOMER LEAVE SYSTEM
+
+Pelanggan harus memiliki kemampuan meninggalkan restoran.
+
+### Normal leave
+
+Ketika pelanggan selesai makan:
+
+1. Customer masuk LEAVING_TABLE.
+2. Customer melakukan stand-up animation.
+3. Seat dilepaskan.
+4. Table occupancy diperbarui.
+5. Customer berjalan menuju exit.
+6. Customer menjalankan exit animation.
+7. Customer dihapus dari active customer list.
+8. Customer instance dibersihkan.
+9. Table berubah menjadi DIRTY.
+
+### Angry leave
+
+Ketika pelanggan terlalu lama menunggu:
+
+1. Customer menunjukkan ekspresi angry.
+2. Customer masuk angry state.
+3. Customer memutuskan meninggalkan restoran.
+4. Customer melepaskan queue atau reservation.
+5. Customer berjalan menuju exit.
+6. Statistik angry customer diperbarui.
+
+### Leave behavior
+
+- Customer tidak boleh teleport ke exit.
+- Customer harus menggunakan pathfinding.
+- Customer tidak boleh meninggalkan game sebelum mencapai exit kecuali recovery behavior.
+- Customer cleanup harus menghapus timer.
+- Customer cleanup harus melepaskan reservation.
+- Customer cleanup harus melepaskan seat.
+- Customer cleanup harus menghapus reference yang tidak lagi dibutuhkan.
+
+---
+
+# 19. DIRTY TABLE SYSTEM
+
+Setelah pelanggan meninggalkan meja, meja menjadi DIRTY.
+
+Dirty table tidak dapat dipilih customer baru.
+
+### Table lifecycle
+
+AVAILABLE
+↓
+RESERVED
+↓
+OCCUPIED
+↓
+DIRTY
+↓
+CLEANING
+↓
+AVAILABLE
+
+Implementasikan lifecycle ini secara konsisten.
+
+### Dirty table visual
+
+Meja dirty dapat menampilkan:
+
+- Piring kosong.
+- Gelas.
+- Sisa makanan.
+- Crumbs.
+- Dirty icon.
+
+Jika asset belum tersedia, gunakan visual fallback yang sesuai.
+
+### Cleaning integration
+
+Siapkan integration point untuk Waiter cleaning system Phase 08/09.
+
+Waiter harus dapat:
+
+- Mengetahui meja dirty.
+- Mendekati meja.
+- Menggunakan interaction system.
+- Membersihkan meja.
+- Mengubah status CLEANING menjadi AVAILABLE.
+
+Jika cleaning mechanic belum tersedia:
+
+- Implementasikan TableManager cleaning API.
+- Buat state CLEANING.
+- Buat callback cleaning.
+- Jangan membuat meja otomatis bersih tanpa alasan.
+
+---
+
+# 20. CUSTOMER GROUP SYSTEM
+
+Implementasikan dukungan customer group.
+
+Setiap group memiliki:
+
+- Group ID.
+- Members.
+- Group size.
+- Assigned table.
+- Queue status.
+- Shared patience.
+- Shared destination.
+- Shared lifecycle.
+
+Contoh:
+
+CustomerGroup:
+
+- Group ID: G001.
+- Members: 2.
+- Required seats: 2.
+- Patience: 100.
+- Table: Table 02.
+
+### Group behavior
+
+- Group masuk bersama.
+- Group mengantre bersama.
+- Group memilih meja bersama.
+- Group mendapatkan table assignment bersama.
+- Group duduk di meja yang sama.
+- Group meninggalkan restoran bersama.
+
+Jika group size melebihi capacity semua meja:
+
+- Group tetap mengantre.
+- Atau keluar sesuai configurable policy.
+
+Jangan memisahkan grup secara otomatis.
+
+---
+
+# 21. CUSTOMER MANAGEMENT SYSTEM
+
+Buat CustomerManager sebagai pusat pengelolaan customer lifecycle.
+
+Tanggung jawab:
+
+- Register customer.
+- Unregister customer.
+- Spawn customer.
+- Track active customers.
+- Track queue.
+- Track groups.
+- Track table assignments.
+- Handle state transitions.
+- Handle customer exit.
+- Handle cleanup.
+- Emit game events.
+
+Gunakan struktur yang sesuai project.
+
+Hindari satu class besar yang mengelola seluruh logic.
+
+Pisahkan tanggung jawab jika diperlukan:
+
+- CustomerManager.
+- CustomerSpawner.
+- CustomerAI.
+- CustomerStateMachine.
+- CustomerQueueManager.
+- CustomerGroupManager.
+- TableManager.
+- Table.
+- SeatManager.
+- CustomerRenderer.
+
+Tidak harus menggunakan nama ini secara kaku. Sesuaikan dengan arsitektur project, tetapi tanggung jawab harus terpisah.
+
+---
+
+# 22. GAME EVENT SYSTEM
+
+Integrasikan dengan event system yang sudah tersedia.
+
+Jika belum tersedia, buat event layer sederhana yang kompatibel.
+
+Events minimal:
+
+- CUSTOMER_SPAWNED
+- CUSTOMER_ENTERED
+- CUSTOMER_QUEUED
+- CUSTOMER_QUEUE_UPDATED
+- CUSTOMER_TABLE_SEARCH_STARTED
+- CUSTOMER_TABLE_ASSIGNED
+- CUSTOMER_MOVING_TO_TABLE
+- CUSTOMER_ARRIVED_AT_TABLE
+- CUSTOMER_SEATED
+- CUSTOMER_WAITING
+- CUSTOMER_PATIENCE_LOW
+- CUSTOMER_PATIENCE_EXPIRED
+- CUSTOMER_ANGRY
+- CUSTOMER_LEAVING
+- CUSTOMER_EXITED
+- TABLE_RESERVED
+- TABLE_RESERVATION_RELEASED
+- TABLE_OCCUPIED
+- TABLE_DIRTY
+- TABLE_CLEANING
+- TABLE_CLEANED
+- CUSTOMER_GROUP_CREATED
+- CUSTOMER_GROUP_DISBANDED
+
+Events harus dipanggil pada saat yang benar.
+
+Hindari duplicate event.
+
+Jangan mengirim event setiap frame untuk event yang hanya terjadi sekali.
+
+---
+
+# 23. INTEGRATION WITH PHASE 04
+
+Phase 05 harus menggunakan interaction dan movement system yang sudah dibuat.
+
+### Required integration
+
+Customer AI:
+
+- Menggunakan movement controller.
+- Menggunakan pathfinding.
+- Menggunakan walkable grid.
+- Menggunakan collision.
+- Menggunakan direction system.
+- Menggunakan animation system.
+- Menggunakan destination system.
+
+Customer harus dapat berjalan di restoran yang sudah dibuat pada Phase 03.
+
+Jangan membuat map customer terpisah.
+
+Jangan mengubah coordinate system.
+
+Jangan mengubah isometric projection.
+
+Jangan merusak player movement.
+
+### Interactable integration
+
+Customer dan meja harus kompatibel dengan generic interaction system.
+
+Waiter:
+
+- Dapat mendekati meja.
+- Dapat mengetahui meja occupied.
+- Dapat mengetahui meja waiting.
+- Dapat mengetahui meja dirty.
+- Dapat berinteraksi dengan customer.
+- Dapat menggunakan cleaning interaction.
+
+Chef:
+
+- Tidak boleh memiliki akses ke customer interaction yang hanya diperuntukkan Waiter, kecuali aturan game sebelumnya mengizinkan.
+
+---
+
+# 24. MULTIPLAYER-READY ARCHITECTURE
+
+Phase 05 harus dipersiapkan untuk multiplayer online.
+
+Game hanya memiliki 2 player:
+
+- 1 Chef.
+- 1 Waiter.
+
+Customer dan table system harus memiliki satu sumber kebenaran.
+
+### Multiplayer requirements
+
+- Customer ID harus unik.
+- Table ID harus unik.
+- Table reservation harus terkontrol.
+- Table assignment tidak boleh konflik.
+- Customer state tidak boleh berbeda antara client.
+- Table occupancy tidak boleh berbeda antara client.
+- Event customer tidak boleh duplicate.
+- Customer spawning tidak boleh terjadi dua kali pada client yang berbeda.
+- Customer AI tidak boleh dijalankan secara independen dengan hasil yang berbeda pada setiap client.
+
+Jika backend multiplayer Phase 11/12 belum tersedia:
+
+Implementasikan simulation manager lokal dengan interface yang siap diganti menjadi authoritative multiplayer service.
+
+Gunakan abstraction layer.
+
+Jangan membuat fake online synchronization.
+
+Jangan mengklaim multiplayer berfungsi jika belum terintegrasi.
+
+---
+
+# 25. GAMEPLAY HUD
+
+Tambahkan HUD sederhana yang menampilkan informasi restoran.
+
+Minimal:
+
+- Active customers.
+- Customers in queue.
+- Available tables.
+- Occupied tables.
+- Dirty tables.
+- Restaurant capacity.
+
+Contoh:
+
+CUSTOMERS: 8/12
+
+QUEUE: 3
+
+TABLES:
+
+AVAILABLE: 2
+
+OCCUPIED: 3
+
+DIRTY: 1
+
+HUD harus:
+
+- Tidak menutupi gameplay.
+- Responsif.
+- Cocok untuk mobile.
+- Menggunakan visual style LOVE KITCHEN.
+- Menggunakan icon bila tersedia.
+- Memiliki update event-driven.
+
+Jangan melakukan DOM update berlebihan setiap frame.
+
+---
+
+# 26. CUSTOMER DEBUG SYSTEM
+
+Buat debug system yang dapat diaktifkan atau dinonaktifkan.
+
+Debug options:
+
+- Show customer ID.
+- Show customer state.
+- Show assigned table.
+- Show group ID.
+- Show path.
+- Show destination.
+- Show queue index.
+- Show table status.
+- Show seat occupancy.
+- Show patience timer.
+- Show reservation timeout.
+- Show collision area.
+- Show walkable grid.
+
+Debug mode harus tidak aktif pada production build.
+
+---
+
+# 27. CONFIGURATION
+
+Buat centralized configuration untuk customer dan table system.
+
+Contoh konfigurasi:
+
+CustomerConfig:
+
+- Spawn interval.
+- Maximum active customers.
+- Maximum queue size.
+- Customer speed.
+- Queue spacing.
+- Patience duration.
+- Table search timeout.
+- Eating duration.
+- Exit delay.
+- Group size probability.
+
+TableConfig:
+
+- Table ID.
+- Capacity.
+- Position.
+- Seat positions.
+- Approach positions.
+- Table type.
+- Enabled state.
+
+QueueConfig:
+
+- Queue position.
+- Queue spacing.
+- Queue capacity.
+- Timeout.
+- Overflow behavior.
+
+Semua konfigurasi harus mudah diubah.
+
+Jangan menyebarkan angka konfigurasi ke berbagai file.
+
+---
+
+# 28. ERROR HANDLING
+
+Implementasikan error handling.
+
+Tangani:
+
+- Pathfinding failure.
+- Table unavailable.
+- Table reservation conflict.
+- Customer stuck.
+- Invalid customer state.
+- Invalid table state.
+- Seat unavailable.
+- Duplicate customer ID.
+- Duplicate table reservation.
+- Queue overflow.
+- Customer cleanup failure.
+- Missing animation.
+- Missing asset.
+- Missing entrance.
+- Missing exit.
+- Invalid configuration.
+
+Game tidak boleh crash ketika satu customer mengalami error.
+
+Gunakan recovery behavior yang sesuai.
+
+Contoh:
+
+Customer stuck:
+
+1. Detect stuck timer.
+2. Recalculate route.
+3. Attempt alternative route.
+4. Retry movement.
+5. Release reservation if required.
+6. Return to queue or exit.
+7. Log error in debug mode.
+
+Jangan silently ignore errors.
+
+---
+
+# 29. PERFORMANCE
+
+Optimalkan untuk Android.
+
+Requirements:
+
+- Tidak membuat object baru setiap frame tanpa kebutuhan.
+- Hindari memory leak.
+- Hindari timer yang tidak dibersihkan.
+- Hindari pathfinding yang terlalu sering.
+- Gunakan event-driven updates.
+- Gunakan update interval untuk AI jika memungkinkan.
+- Batasi customer active count.
+- Optimalkan sprite.
+- Optimalkan animation update.
+- Optimalkan collision checks.
+- Gunakan pooling jika sesuai.
+- Jangan membuat unnecessary DOM updates.
+
+Targetkan gameplay smooth pada perangkat Android menengah.
+
+---
+
+# 30. TESTING
+
+Buat unit test, integration test, dan gameplay validation.
+
+## A. Customer spawning
+
+Test:
+
+- Customer spawn di entrance.
+- Customer ID unik.
+- Customer tidak spawn di wall.
+- Customer tidak spawn di non-walkable area.
+- Spawn cooldown berfungsi.
+- Maximum customers berfungsi.
+- Spawn berhenti saat capacity penuh.
+
+## B. Queue system
+
+Test:
+
+- Customer masuk queue ketika meja penuh.
+- Queue position benar.
+- Queue spacing benar.
+- Queue update setelah customer keluar.
+- Queue overflow behavior.
+- Queue timeout.
+- Customer patience.
+- Customer tidak overlap secara berlebihan.
+
+## C. Table system
+
+Test:
+
+- Meja AVAILABLE dapat dipilih.
+- Meja OCCUPIED tidak dapat dipilih.
+- Meja DIRTY tidak dapat dipilih.
+- Meja CLEANING tidak dapat dipilih.
+- Meja DISABLED tidak dapat dipilih.
+- Capacity validation.
+- Reservation lock.
+- Reservation timeout.
+- Duplicate reservation prevention.
+
+## D. Customer movement
+
+Test:
+
+- Customer berjalan menuju meja.
+- Customer menggunakan pathfinding.
+- Customer menghindari obstacle.
+- Customer tidak menembus wall.
+- Customer tidak menembus counter.
+- Customer berhenti pada destination.
+- Customer dapat mencari route alternatif.
+- Customer dapat exit restoran.
+
+## E. Seating
+
+Test:
+
+- Customer berhasil duduk.
+- Seat assignment benar.
+- Customer group duduk di meja yang sama.
+- Occupancy benar.
+- Tidak ada duplicate seat assignment.
+- Customer tidak melayang.
+- Customer tidak menembus meja.
+
+## F. Customer lifecycle
+
+Test:
+
+- Customer masuk.
+- Customer antre.
+- Customer mendapat meja.
+- Customer duduk.
+- Customer waiting.
+- Customer leave.
+- Customer exit.
+- Customer cleanup.
+
+## G. Dirty table
+
+Test:
+
+- Table menjadi DIRTY setelah customer leave.
+- Table DIRTY tidak menerima customer.
+- Table dapat memasuki CLEANING.
+- Table dapat menjadi AVAILABLE setelah cleaning selesai.
+
+## H. Integration
+
+Test:
+
+- Phase 01 tidak rusak.
+- Phase 02 animation tidak rusak.
+- Phase 03 map tidak rusak.
+- Phase 04 movement tidak rusak.
+- Player movement tetap berjalan.
+- Chef role tetap berjalan.
+- Waiter role tetap berjalan.
+- Mobile controls tetap berjalan.
+- Camera tetap berjalan.
+- Collision tetap berjalan.
+
+---
+
+# 31. GAMEPLAY VALIDATION
+
+Jalankan game dan validasi behavior secara visual.
+
+Skenario 1:
+
+1. Start game.
+2. Customer muncul.
+3. Customer masuk restoran.
+4. Customer menemukan meja.
+5. Customer berjalan ke meja.
+6. Customer duduk.
+7. Customer waiting.
+8. Customer dapat dilayani melalui interaction framework.
+
+Skenario 2:
+
+1. Semua meja diisi.
+2. Customer baru masuk.
+3. Customer masuk queue.
+4. Customer menempati queue position.
+5. Customer menunggu.
+6. Customer keluar ketika patience habis.
+
+Skenario 3:
+
+1. Customer group terdiri dari 2 orang.
+2. Group masuk.
+3. Group memilih meja berkapasitas 2 atau lebih.
+4. Group duduk bersama.
+5. Occupancy benar.
+
+Skenario 4:
+
+1. Customer meninggalkan meja.
+2. Seat dilepaskan.
+3. Table berubah DIRTY.
+4. Customer berjalan ke exit.
+5. Customer instance dibersihkan.
+6. Table tidak dapat dipilih customer baru.
+
+Skenario 5:
+
+1. Waiter bergerak menggunakan Phase 04.
+2. Customer tidak mengganggu movement player.
+3. Collision berfungsi.
+4. Player dan customer dapat berada di restoran yang sama.
+5. Depth sorting benar.
+
+---
+
+# 32. VISUAL QUALITY
+
+Pertahankan visual style:
+
+- Cute cartoon.
+- Colorful.
+- 2.5D.
+- Isometric.
+- Modern mobile game.
+- Warm restaurant atmosphere.
+- Friendly characters.
+- Expressive faces.
+- Smooth animations.
+
+Pelanggan harus terlihat hidup.
+
+Tambahkan jika memungkinkan:
+
+- Entrance animation.
+- Walking animation.
+- Sitting animation.
+- Eating animation.
+- Reaction animation.
+- Thought bubbles.
+- Patience indicators.
+- Table status indicators.
+
+Jangan membuat UI terlalu ramai.
+
+Prioritaskan gameplay clarity.
+
+---
+
+# 33. FILE STRUCTURE
+
+Audit struktur project yang sudah ada.
+
+Jika architecture mendukung, pisahkan customer system secara modular.
+
+Contoh:
+
+src/
+├── systems/
+│   ├── customer/
+│   │   ├── CustomerManager.ts
+│   │   ├── CustomerSpawner.ts
+│   │   ├── CustomerAI.ts
+│   │   ├── CustomerStateMachine.ts
+│   │   ├── CustomerQueueManager.ts
+│   │   ├── CustomerGroupManager.ts
+│   │   └── CustomerConfig.ts
+│   ├── table/
+│   │   ├── TableManager.ts
+│   │   ├── Table.ts
+│   │   ├── SeatManager.ts
+│   │   ├── TableState.ts
+│   │   └── TableConfig.ts
+│   └── events/
+│       └── GameEvents.ts
+
+Struktur di atas hanya contoh.
+
+Sesuaikan dengan struktur project yang benar-benar sudah ada.
+
+Jangan membuat duplicate manager.
+
+---
+
+# 34. IMPLEMENTATION RULES
+
+WAJIB:
+
+- Baca seluruh struktur project terlebih dahulu.
+- Audit Phase 01–04.
+- Identifikasi movement system.
+- Identifikasi map.
+- Identifikasi interaction framework.
+- Identifikasi animation system.
+- Identifikasi coordinate system.
+- Implementasikan real functionality.
+- Gunakan TypeScript types.
+- Integrasikan customer movement dengan Phase 04.
+- Integrasikan table system dengan Phase 03.
+- Implementasikan AI state machine.
+- Implementasikan queue system.
+- Implementasikan table assignment.
+- Implementasikan seating.
+- Implementasikan customer exit.
+- Implementasikan dirty table.
+- Tambahkan testing.
+- Jalankan build.
+- Perbaiki error.
+
+DILARANG:
+
+- Membuat ulang project dari nol.
+- Menghapus fitur Phase 01–04.
+- Mengubah coordinate system tanpa alasan.
+- Mengganti Phaser dengan engine lain.
+- Membuat mock customer movement.
+- Membuat fake AI.
+- Membuat fake pathfinding.
+- Membuat fake queue.
+- Membuat fake table occupancy.
+- Membuat fitur hanya berupa UI.
+- Menggunakan pseudo-code.
+- Membuat tombol tanpa fungsi.
+- Menggunakan asset yang tidak tersedia dan menyebabkan error.
+- Mengabaikan error TypeScript.
+- Mengabaikan build error.
+- Mengklaim fitur selesai jika belum diuji.
+
+---
+
+# 35. BUILD & VALIDATION
+
+Setelah implementasi:
+
+1. Install dependencies jika memang diperlukan.
+2. Jalankan TypeScript validation.
+3. Jalankan unit test.
+4. Jalankan integration test.
+5. Jalankan production build.
+6. Periksa error console.
+7. Periksa warning.
+8. Periksa import.
+9. Periksa asset path.
+10. Periksa memory cleanup.
+11. Periksa mobile responsiveness.
+12. Periksa gameplay.
+
+Jika ditemukan error:
+
+- Analisis penyebab.
+- Perbaiki source code.
+- Jalankan test kembali.
+- Jalankan build kembali.
+
+Jangan berhenti pada tahap coding tanpa validasi.
+
+---
+
+# 36. FINAL REPORT
+
+Setelah implementasi selesai, berikan laporan:
+
+### A. Implementation Summary
+
+Fitur yang berhasil diimplementasikan.
+
+### B. New Files
+
+Daftar file baru.
+
+### C. Modified Files
+
+Daftar file yang diubah.
+
+### D. Customer AI
+
+Jelaskan state machine dan lifecycle.
+
+### E. Queue System
+
+Jelaskan behavior antrean.
+
+### F. Table System
+
+Jelaskan table reservation, capacity, occupancy, dan status.
+
+### G. Movement Integration
+
+Jelaskan integrasi dengan Phase 04.
+
+### H. Multiplayer Readiness
+
+Jelaskan bagian yang sudah siap untuk multiplayer dan bagian yang masih lokal.
+
+Jangan mengklaim multiplayer synchronization telah selesai jika backend belum terintegrasi.
+
+### I. Testing
+
+Laporkan test yang benar-benar dijalankan.
+
+### J. Build Status
+
+Laporkan status TypeScript, test, dan production build secara jujur.
+
+### K. Known Issues
+
+Tuliskan bug atau fitur yang masih belum selesai.
+
+### L. How to Play / Test
+
+Berikan langkah menjalankan dan mencoba Customer & Table System.
+
+---
+
+# 37. DEFINITION OF DONE
+
+Phase 05 hanya dianggap selesai jika:
+
+- [ ] Customer dapat spawn.
+- [ ] Customer masuk restoran.
+- [ ] Customer dapat mengantre.
+- [ ] Queue system berfungsi.
+- [ ] Customer dapat memilih meja.
+- [ ] Table reservation berfungsi.
+- [ ] Customer berjalan menuju meja.
+- [ ] Customer menggunakan pathfinding.
+- [ ] Customer tidak menembus obstacle.
+- [ ] Customer dapat duduk.
+- [ ] Seating system berfungsi.
+- [ ] Table occupancy akurat.
+- [ ] Customer group dapat didukung.
+- [ ] Customer memiliki state AI.
+- [ ] Customer patience framework berfungsi.
+- [ ] Customer dapat meninggalkan meja.
+- [ ] Customer dapat menuju exit.
+- [ ] Customer cleanup berfungsi.
+- [ ] Table menjadi DIRTY setelah customer pergi.
+- [ ] Table DIRTY tidak dapat digunakan.
+- [ ] Cleaning integration point tersedia.
+- [ ] HUD customer dan table berfungsi.
+- [ ] Phase 01–04 tetap berfungsi.
+- [ ] Tidak ada critical runtime error.
+- [ ] TypeScript validation berhasil.
+- [ ] Test berhasil.
+- [ ] Production build berhasil.
+
+---
+
+# FINAL INSTRUCTION
+
+Mulai dengan menginspeksi project yang sudah ada.
+
+Kemudian langsung implementasikan Phase 05 ke dalam codebase yang sama.
+
+Jangan hanya memberikan penjelasan tentang apa yang akan dilakukan.
+
+Jangan berhenti setelah membuat plan.
+
+Jangan meminta persetujuan untuk setiap file yang akan dibuat.
+
+Gunakan keputusan teknis terbaik yang sesuai architecture project.
+
+Prioritaskan:
+
+1. Working functionality.
+2. Stable architecture.
+3. Integration with previous phases.
+4. Reliable customer AI.
+5. Reliable table management.
+6. Smooth movement.
+7. Mobile performance.
+8. Maintainable code.
+9. Testing.
+10. Successful production build.
+
+**Implementasikan Phase 05 sampai benar-benar berfungsi dan terintegrasi.**
