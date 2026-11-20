@@ -7,8 +7,10 @@ import type {
   OrderSystemSnapshot,
 } from '../game/systems/orders/OrderTypes.ts';
 import type { RestaurantTableState } from '../game/systems/table/TableState.ts';
+import type { ConnectionStatus, RoomStatus } from './roomProtocol.ts';
 
 export type {
+  ConnectionStatus,
   CustomerRuntimeSnapshot,
   Order,
   OrderDraftSubmissionItem,
@@ -16,6 +18,7 @@ export type {
   OrderSystemSnapshot,
   RestaurantMetrics,
   RestaurantTableState,
+  RoomStatus,
 };
 
 export type PlayerRole = 'chef' | 'waiter';
@@ -169,10 +172,15 @@ export interface PlayerAvatarState {
 
 export interface RoomMember {
   socketId: string;
+  playerId: string;
+  slot: 1 | 2;
   name: string;
   role: PlayerRole | null;
   ready: boolean;
   isHost: boolean;
+  connected: boolean;
+  joinedAt: number;
+  disconnectedAt?: number | null;
 }
 
 export type RoomPhase = 'lobby' | 'character_select' | 'playing' | 'paused' | 'finished';
@@ -184,13 +192,65 @@ export function isSoloControlMode(mode?: GameMode | null): boolean {
 }
 
 export interface RoomState {
+  roomId: string;
+  roomCode: string;
+  /** Legacy alias kept identical to roomCode for backward compatibility across scenes. */
   code: string;
-  mode: GameMode;
-  phase: RoomPhase;
-  members: RoomMember[];
+  hostId: string;
+  hostName: string;
   hostSocketId: string;
+  mode: GameMode;
+  gameMode: GameMode;
+  selectedMap: string;
+  phase: RoomPhase;
+  roomStatus: RoomStatus;
+  playerCount: number;
   maxPlayers: number;
+  members: RoomMember[];
+  /** Canonical player roster matching members. */
+  players: RoomMember[];
+  gameSessionId: string | null;
   createdAt: number;
+  updatedAt: number;
+  expiresAt: number;
+}
+
+export interface RoomPlayerEventPayload {
+  roomId: string;
+  roomCode: string;
+  player: RoomMember;
+  room: RoomState;
+}
+
+export interface RoomStateChangedPayload {
+  roomId: string;
+  roomCode: string;
+  previousStatus: RoomStatus;
+  roomStatus: RoomStatus;
+  room: RoomState;
+}
+
+export interface RoomReadyChangedPayload {
+  roomId: string;
+  roomCode: string;
+  playerId: string;
+  ready: boolean;
+  room: RoomState;
+}
+
+export interface RoomHostChangedPayload {
+  roomId: string;
+  roomCode: string;
+  previousHostId: string;
+  newHostId: string;
+  newHostName: string;
+  room: RoomState;
+}
+
+export interface RoomClosedPayload {
+  roomId: string;
+  roomCode: string;
+  reason: string;
 }
 
 export interface GameEffectEvent {

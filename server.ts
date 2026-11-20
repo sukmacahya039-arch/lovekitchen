@@ -19,7 +19,9 @@ async function startServer() {
       origin: '*',
       methods: ['GET', 'POST'],
     },
-    transports: ['websocket', 'polling'],
+    transports: ['polling', 'websocket'],
+    pingInterval: 15000,
+    pingTimeout: 10000,
   });
 
   const roomManager = new RoomManager(io);
@@ -35,6 +37,23 @@ async function startServer() {
       game: 'Love Kitchen – 2.5D Co-Op Restaurant Rush',
       ...roomManager.getStats(),
     });
+  });
+
+  app.get('/api/rooms/:code', (req, res) => {
+    const info = roomManager.getPublicRoomInfo(req.params.code);
+    if (!info.exists) {
+      res.status(404).json({
+        ok: false,
+        exists: false,
+        error: 'Room tidak ditemukan. Periksa kode room dan coba lagi.',
+      });
+      return;
+    }
+    res.json({ ok: true, ...info });
+  });
+
+  app.get('/manifest.json', (_req, res) => {
+    res.redirect(302, '/manifest.webmanifest');
   });
 
   const isProd = process.env.NODE_ENV === 'production';
@@ -95,7 +114,17 @@ export class ErrorOverlay extends HTMLElement {}
     app.use(vite.middlewares);
   } else {
     const distPath = path.resolve(__dirname, 'dist');
-    app.use(express.static(distPath));
+    app.use(
+      express.static(distPath, {
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('manifest.webmanifest')) {
+            res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+          } else if (filePath.endsWith('sw.js')) {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          }
+        },
+      })
+    );
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });

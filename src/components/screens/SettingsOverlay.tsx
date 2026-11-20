@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowLeft, Volume2, VolumeX } from 'lucide-react';
 import type { AudioSettings, PlayerRole } from '../../shared/types.ts';
+import { usePWAInstall } from '../../hooks/usePWAInstall.ts';
 import { PWAInstallButton } from '../PWAInstallButton.tsx';
 
 interface Props {
@@ -26,6 +27,8 @@ export const SettingsOverlay: React.FC<Props> = ({
   onChangePreferredRole,
   onBack,
 }) => {
+  const { isInstalled } = usePWAInstall();
+
   return (
     <div className="absolute inset-0 z-30 flex items-center justify-center p-4 overflow-y-auto">
       <div className="w-full max-w-lg rounded-3xl bg-[#FFFDF9]/96 border border-[#3B2318]/15 p-5 sm:p-7 shadow-2xl">
@@ -133,12 +136,14 @@ export const SettingsOverlay: React.FC<Props> = ({
             </div>
           </div>
 
-          <div className="pt-2 flex items-center justify-between gap-3">
-            <span className="text-xs font-semibold text-[#7C5340]">
-              Aplikasi Android / iOS PWA
-            </span>
-            <PWAInstallButton compact />
-          </div>
+          {!isInstalled && (
+            <div className="pt-2 flex items-center justify-between gap-3">
+              <span className="text-xs font-semibold text-[#7C5340]">
+                Aplikasi Android / iOS PWA
+              </span>
+              <PWAInstallButton compact />
+            </div>
+          )}
         </div>
       </div>
     </div>

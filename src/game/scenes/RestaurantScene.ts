@@ -141,7 +141,10 @@ export class RestaurantScene extends Phaser.Scene {
         gameSessionManager.getSoloSession()?.getActiveRole() ?? SOLO_BALANCE_CONFIG.initialRole;
     } else {
       const room = socketService.getCurrentRoom();
-      const me = room?.members.find((m) => m.socketId === myIdentityId);
+      const myPlayerId = socketService.getPlayerId();
+      const me = room?.members.find(
+        (m) => m.socketId === myIdentityId || m.playerId === myPlayerId
+      );
       this.activeRole = me?.role ?? 'chef';
     }
     this.lastReportedBridgeMoving = false;

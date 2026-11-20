@@ -8,6 +8,7 @@ import { gameSessionManager } from '../game/systems/session/GameSessionManager.t
 import { resolveMenuRoute, SOLO_BALANCE_CONFIG } from '../game/systems/solo/SoloConfig.ts';
 import { gameBridge, type BridgeState } from '../game/systems/ui/GameBridge.ts';
 import { auth, signInWithGoogle, signOutUser } from '../services/firebase.ts';
+import { pwaInstallManager } from '../services/pwaInstallManager.ts';
 import {
   fetchTopLeaderboard,
   loadOrCreatePlayerProfile,
@@ -17,6 +18,7 @@ import {
 } from '../services/playerDataService.ts';
 import type {
   AudioSettings,
+  ConnectionStatus,
   PlayerProfileData,
   PlayerRole,
   RoomState,
@@ -55,7 +57,18 @@ export const GameShell: React.FC = () => {
   const [preferredRole, setPreferredRole] = useState<PlayerRole>('chef');
 
   const [room, setRoom] = useState<RoomState | null>(null);
-  const [mySocketId, setMySocketId] = useState<string | null>(null);
+  const [mySocketId, setMySocketId] = useState<string | null>(() => socketService.getSocketId());
+  const [myPlayerId] = useState<string>(() => socketService.getPlayerId());
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(
+    () => socketService.getConnectionSnapshot().status
+  );
+  const [connectionError, setConnectionError] = useState<string | null>(
+    () => socketService.getConnectionSnapshot().error
+  );
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [isJoiningRoom, setIsJoiningRoom] = useState(false);
+  const [isStartingGame, setIsStartingGame] = useState(false);
+  const [isTogglingReady, setIsTogglingReady] = useState(false);
   const [isSearchingMatch, setIsSearchingMatch] = useState(false);
   const [lobbyError, setLobbyError] = useState<string | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
@@ -110,13 +123,18 @@ export const GameShell: React.FC = () => {
     };
   }, [switchPhaserScene]);
 
-  // Subscribe to GameBridge & AudioManager
+  // Subscribe to GameBridge, AudioManager & real PWA appinstalled confirmation
   useEffect(() => {
     const unsubBridge = gameBridge.subscribe(setBridge);
     const unsubAudio = audioManager.subscribe(setAudio);
+    const unsubInstalled = pwaInstallManager.onInstalled(() => {
+      audioManager.playSfx('ready');
+      gameBridge.showToast('Love Kitchen berhasil di-install!', 4000);
+    });
     return () => {
       unsubBridge();
       unsubAudio();
+      unsubInstalled();
     };
   }, []);
 
@@ -180,45 +198,103 @@ export const GameShell: React.FC = () => {
   // Connect real Socket.IO multiplayer client strictly for Online Co-Op lobby/room events
   useEffect(() => {
     socketService.connect();
-    setMySocketId(socketService.getSocketId());
+    const initialConn = socketService.getConnectionSnapshot();
+    setMySocketId(initialConn.socketId);
+    setConnectionStatus(initialConn.status);
+    setConnectionError(initialConn.error);
 
-    const u1 = socketService.on('connected', (id) => setMySocketId(id));
-    const u2 = socketService.on('roomUpdated', (updatedRoom) => {
-      if (gameSessionManager.isSoloSession()) return;
-      setRoom(updatedRoom);
-      if (updatedRoom.phase === 'character_select' && gameBridge.getState().activeScene === 'LobbyScene') {
-        gameBridge.navigateTo('CharacterSelectionScene');
-      }
-    });
-    const u3 = socketService.on('matchFound', (matchedRoom) => {
-      if (gameSessionManager.isSoloSession()) return;
-      setIsSearchingMatch(false);
-      setRoom(matchedRoom);
-      audioManager.playSfx('ready');
-      gameBridge.navigateTo('CharacterSelectionScene');
-    });
-    const u4 = socketService.on('gameStarted', (snapshot) => {
-      if (gameSessionManager.isSoloSession()) return;
-      gameBridge.patch({ lastSnapshot: snapshot });
-      gameBridge.navigateTo('RestaurantScene');
-    });
-    const u7 = socketService.on('rematchReady', (rematchRoom) => {
-      if (gameSessionManager.isSoloSession()) return;
-      setRoom(rematchRoom);
-      gameBridge.navigateTo('CharacterSelectionScene');
-    });
-    const u8 = socketService.on('partnerLeft', (msg) => {
-      if (gameSessionManager.isSoloSession()) return;
-      gameBridge.showToast(msg, 4000);
-    });
+    const unsubs = [
+      socketService.on('connected', (id) => setMySocketId(id)),
+      socketService.on('connectionStatusChanged', (snap) => {
+        setConnectionStatus(snap.status);
+        setConnectionError(snap.error);
+        setMySocketId(snap.socketId);
+      }),
+      socketService.on('roomUpdated', (updatedRoom) => {
+        if (gameSessionManager.isSoloSession()) return;
+        setRoom(updatedRoom);
+        if (
+          updatedRoom.phase === 'character_select' &&
+          gameBridge.getState().activeScene === 'LobbyScene'
+        ) {
+          gameBridge.navigateTo('CharacterSelectionScene');
+        }
+      }),
+      socketService.on('playerJoined', (payload) => {
+        if (gameSessionManager.isSoloSession()) return;
+        setRoom(payload.room);
+        if (payload.player.playerId !== socketService.getPlayerId()) {
+          audioManager.playSfx('ready');
+          const roleLabel = payload.player.role === 'chef' ? 'Chef' : 'Waiter';
+          gameBridge.showToast(`${payload.player.name} bergabung sebagai ${roleLabel}!`, 2800);
+        }
+      }),
+      socketService.on('playerLeft', (payload) => {
+        if (gameSessionManager.isSoloSession()) return;
+        setRoom(payload.room);
+        if (payload.player.playerId !== socketService.getPlayerId()) {
+          gameBridge.showToast(`${payload.player.name} meninggalkan room.`, 2800);
+        }
+      }),
+      socketService.on('playerDisconnected', (payload) => {
+        if (gameSessionManager.isSoloSession()) return;
+        setRoom(payload.room);
+        if (payload.player.playerId !== socketService.getPlayerId()) {
+          gameBridge.showToast(
+            `${payload.player.name} terputus. Menunggu sambung ulang...`,
+            3200
+          );
+        }
+      }),
+      socketService.on('playerReconnected', (payload) => {
+        if (gameSessionManager.isSoloSession()) return;
+        setRoom(payload.room);
+        if (payload.player.playerId !== socketService.getPlayerId()) {
+          audioManager.playSfx('ready');
+          gameBridge.showToast(`${payload.player.name} tersambung kembali!`, 2600);
+        }
+      }),
+      socketService.on('hostChanged', (payload) => {
+        if (gameSessionManager.isSoloSession()) return;
+        setRoom(payload.room);
+        gameBridge.showToast(`${payload.newHostName} sekarang menjadi Host room.`, 2800);
+      }),
+      socketService.on('roomClosed', (payload) => {
+        if (gameSessionManager.isSoloSession()) return;
+        setRoom(null);
+        setIsStartingGame(false);
+        setLobbyError(payload.reason || 'Room telah ditutup.');
+        gameBridge.showToast(payload.reason || 'Room telah ditutup.', 3200);
+        if (gameBridge.getState().activeScene === 'CharacterSelectionScene') {
+          gameBridge.navigateTo('LobbyScene');
+        }
+      }),
+      socketService.on('matchFound', (matchedRoom) => {
+        if (gameSessionManager.isSoloSession()) return;
+        setIsSearchingMatch(false);
+        setRoom(matchedRoom);
+        audioManager.playSfx('ready');
+        gameBridge.showToast(`Partner ditemukan! Room ${matchedRoom.roomCode} siap.`, 2600);
+      }),
+      socketService.on('gameStarted', (snapshot) => {
+        if (gameSessionManager.isSoloSession()) return;
+        setIsStartingGame(false);
+        gameBridge.patch({ lastSnapshot: snapshot });
+        gameBridge.navigateTo('RestaurantScene');
+      }),
+      socketService.on('rematchReady', (rematchRoom) => {
+        if (gameSessionManager.isSoloSession()) return;
+        setRoom(rematchRoom);
+        gameBridge.navigateTo('LobbyScene');
+      }),
+      socketService.on('partnerLeft', (msg) => {
+        if (gameSessionManager.isSoloSession()) return;
+        gameBridge.showToast(msg, 4000);
+      }),
+    ];
 
     return () => {
-      u1();
-      u2();
-      u3();
-      u4();
-      u7();
-      u8();
+      unsubs.forEach((u) => u());
     };
   }, []);
 
@@ -268,42 +344,69 @@ export const GameShell: React.FC = () => {
     gameBridge.showToast('Latihan Solo dimulai · Ganti Chef & Waiter kapan saja!', 2400);
   };
 
-  const handlePlayOnline = async () => {
+  const handlePlayOnline = () => {
+    audioManager.unlock();
+    audioManager.playSfx('click');
+    setLobbyError(null);
+    setRoom(null);
+    setIsSearchingMatch(false);
+    setIsCreatingRoom(false);
+    setIsJoiningRoom(false);
+    gameSessionManager.enterOnlineMode();
+    socketService.connect();
+
+    const route = resolveMenuRoute('PLAY_ONLINE');
+    gameBridge.patch({ lobbyMode: route.lobbyMode ?? 'online' });
+    gameBridge.navigateTo(route.targetScene);
+  };
+
+  const handleStartMatchmaking = async () => {
+    if (isSearchingMatch || isCreatingRoom || isJoiningRoom) return;
     audioManager.unlock();
     audioManager.playSfx('click');
     setLobbyError(null);
     setRoom(null);
     gameSessionManager.enterOnlineMode();
-
-    const route = resolveMenuRoute('PLAY_ONLINE');
-    gameBridge.patch({ lobbyMode: route.lobbyMode ?? 'online' });
-    gameBridge.navigateTo(route.targetScene);
     setIsSearchingMatch(true);
+
     const res = await socketService.joinMatchmaking(playerName);
     if (!res.ok) {
       setIsSearchingMatch(false);
-      setLobbyError('Gagal tersambung ke server matchmaking.');
+      setLobbyError(res.error || 'Gagal tersambung ke server matchmaking. Coba lagi.');
     } else if (res.matched && res.room) {
       setIsSearchingMatch(false);
       setRoom(res.room);
-      gameBridge.navigateTo('CharacterSelectionScene');
+      audioManager.playSfx('ready');
     }
   };
 
   const handleCreateRoom = async () => {
+    if (isCreatingRoom || isJoiningRoom) return;
     audioManager.unlock();
     audioManager.playSfx('click');
     setLobbyError(null);
+    setIsSearchingMatch(false);
     gameSessionManager.enterOnlineMode();
 
     const route = resolveMenuRoute('CREATE_ROOM');
     gameBridge.patch({ lobbyMode: route.lobbyMode ?? 'create' });
-    gameBridge.navigateTo(route.targetScene);
-    const res = await socketService.createRoom(playerName, 'coop');
-    if (res.ok && res.room) {
-      setRoom(res.room);
-    } else {
-      setLobbyError(res.error || 'Gagal membuat room.');
+    if (gameBridge.getState().activeScene !== route.targetScene) {
+      gameBridge.navigateTo(route.targetScene);
+    }
+
+    setIsCreatingRoom(true);
+    try {
+      const res = await socketService.createRoom(playerName, 'coop');
+      if (res.ok && res.room) {
+        setRoom(res.room);
+        audioManager.playSfx('ready');
+        gameBridge.showToast(`Room ${res.room.roomCode} berhasil dibuat!`, 2400);
+      } else {
+        setRoom(null);
+        setLobbyError(res.error || 'Gagal membuat room. Periksa koneksi dan coba lagi.');
+      }
+    } finally {
+      setIsCreatingRoom(false);
     }
   };
 
@@ -312,7 +415,9 @@ export const GameShell: React.FC = () => {
     audioManager.playSfx('click');
     setLobbyError(null);
     setRoom(null);
+    setIsSearchingMatch(false);
     gameSessionManager.enterOnlineMode();
+    socketService.connect();
 
     const route = resolveMenuRoute('JOIN_ROOM');
     gameBridge.patch({ lobbyMode: route.lobbyMode ?? 'join' });
@@ -320,22 +425,48 @@ export const GameShell: React.FC = () => {
   };
 
   const handleJoinCode = async (code: string) => {
+    if (isJoiningRoom || isCreatingRoom) return;
     audioManager.unlock();
     audioManager.playSfx('click');
     setLobbyError(null);
+    setIsSearchingMatch(false);
     gameSessionManager.enterOnlineMode();
-    const res = await socketService.joinRoom(code, playerName);
-    if (res.ok && res.room) {
-      setRoom(res.room);
-    } else {
-      setLobbyError(res.error || 'Kode room tidak valid.');
+
+    setIsJoiningRoom(true);
+    try {
+      const res = await socketService.joinRoom(code, playerName);
+      if (res.ok && res.room) {
+        setRoom(res.room);
+        audioManager.playSfx('ready');
+        gameBridge.showToast(`Berhasil bergabung ke room ${res.room.roomCode}!`, 2400);
+      } else {
+        setLobbyError(res.error || 'Room tidak ditemukan. Periksa kode room dan coba lagi.');
+      }
+    } finally {
+      setIsJoiningRoom(false);
     }
+  };
+
+  const handleLeaveRoomToLobby = () => {
+    audioManager.playSfx('click');
+    socketService.cancelMatchmaking();
+    socketService.leaveRoom();
+    setIsSearchingMatch(false);
+    setIsCreatingRoom(false);
+    setIsJoiningRoom(false);
+    setIsStartingGame(false);
+    setRoom(null);
+    setLobbyError(null);
+    gameBridge.patch({ lobbyMode: 'online' });
   };
 
   const handleLeaveToMenu = () => {
     audioManager.playSfx('click');
     gameSessionManager.leaveActiveSession();
     setIsSearchingMatch(false);
+    setIsCreatingRoom(false);
+    setIsJoiningRoom(false);
+    setIsStartingGame(false);
     setRoom(null);
     setLobbyError(null);
     gameBridge.patch({
@@ -356,13 +487,36 @@ export const GameShell: React.FC = () => {
     }
   };
 
+  const handleToggleReady = async () => {
+    if (isTogglingReady) return;
+    audioManager.playSfx('click');
+    setLobbyError(null);
+    setIsTogglingReady(true);
+    try {
+      const res = await socketService.toggleReady();
+      if (!res.ok && res.error) {
+        setLobbyError(res.error);
+      }
+    } finally {
+      setIsTogglingReady(false);
+    }
+  };
+
   const handleStartGame = async () => {
+    if (isStartingGame) return;
     audioManager.unlock();
     audioManager.playSfx('ready');
     setLobbyError(null);
-    const res = await socketService.startGame();
-    if (!res.ok && res.error) {
-      setLobbyError(res.error);
+    setIsStartingGame(true);
+    try {
+      const res = await socketService.startGame();
+      if (!res.ok) {
+        setIsStartingGame(false);
+        setLobbyError(res.error || 'Gagal memulai game. Pastikan kedua pemain sudah siap.');
+      }
+    } catch {
+      setIsStartingGame(false);
+      setLobbyError('Gagal memulai game. Coba lagi.');
     }
   };
 
@@ -467,28 +621,45 @@ export const GameShell: React.FC = () => {
         />
       )}
 
-      {/* Scene 4: Lobby */}
+      {/* Scene 4: Lobby & Real Multiplayer Waiting Room */}
       {bridge.activeScene === 'LobbyScene' && (
         <LobbyOverlay
           mode={bridge.lobbyMode}
           room={room}
+          playerName={playerName}
+          myPlayerId={myPlayerId}
           mySocketId={mySocketId}
+          connectionStatus={connectionStatus}
+          connectionError={connectionError}
+          isCreatingRoom={isCreatingRoom}
+          isJoiningRoom={isJoiningRoom}
+          isStartingGame={isStartingGame}
+          isTogglingReady={isTogglingReady}
           isSearchingMatch={isSearchingMatch}
           errorText={lobbyError}
+          onPlayerNameChange={handleNameChange}
           onBack={handleLeaveToMenu}
+          onRetryConnection={() => {
+            setLobbyError(null);
+            socketService.reconnect();
+          }}
           onJoinCode={(code) => void handleJoinCode(code)}
           onCreateCoopRoom={() => void handleCreateRoom()}
-          onStartSoloPractice={handleStartSolo}
-          onStartMatchmaking={() => void handlePlayOnline()}
+          onStartMatchmaking={() => void handleStartMatchmaking()}
           onCancelMatchmaking={() => {
             socketService.cancelMatchmaking();
             setIsSearchingMatch(false);
           }}
+          onToggleReady={() => void handleToggleReady()}
+          onStartGame={() => void handleStartGame()}
           onProceedCharacterSelect={() => {
             audioManager.playSfx('click');
             socketService.proceedToCharacterSelect();
             gameBridge.navigateTo('CharacterSelectionScene');
           }}
+          onLeaveRoom={handleLeaveRoomToLobby}
+          onNotifyToast={(msg) => gameBridge.showToast(msg, 2400)}
+          onClearError={() => setLobbyError(null)}
         />
       )}
 
@@ -509,10 +680,7 @@ export const GameShell: React.FC = () => {
             });
           }}
           onSelectRole={(role) => void handleSelectRole(role)}
-          onToggleReady={() => {
-            audioManager.playSfx('click');
-            socketService.toggleReady();
-          }}
+          onToggleReady={() => void handleToggleReady()}
           onStartGame={() => void handleStartGame()}
           onLeave={handleLeaveToMenu}
         />

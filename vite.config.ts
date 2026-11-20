@@ -15,15 +15,18 @@ export default defineConfig(() => {
         includeAssets: ['icon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png'],
         manifest: {
           id: '/',
+          lang: 'id',
           name: 'Love Kitchen – 2.5D Co-Op Restaurant Rush',
           short_name: 'LoveKitchen',
-          description: 'Cooperative 2-player 2.5D isometric cartoon restaurant time-management game.',
+          description: 'Masak, layani pelanggan, dan main bareng pasangan langsung dari HP.',
           theme_color: '#FF6B6B',
           background_color: '#FFF6EC',
           display: 'standalone',
+          display_override: ['standalone', 'minimal-ui'],
           orientation: 'any',
           start_url: '/',
           scope: '/',
+          prefer_related_applications: false,
           categories: ['games', 'entertainment'],
           icons: [
             {
@@ -49,6 +52,7 @@ export default defineConfig(() => {
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,woff,woff2}'],
           maximumFileSizeToCacheInBytes: 16 * 1024 * 1024,
+          navigateFallbackDenylist: [/^\/api\//, /^\/socket\.io\//],
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

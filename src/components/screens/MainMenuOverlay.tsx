@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
 import type { PlayerProfileData } from '../../shared/types.ts';
-import { PWAInstallButton } from '../PWAInstallButton.tsx';
+import { PWAInstallBanner, PWAInstallButton } from '../PWAInstallButton.tsx';
 
 interface Props {
   user: User | null;
@@ -134,6 +134,8 @@ export const MainMenuOverlay: React.FC<Props> = ({
               </span>
             </div>
           )}
+
+          <PWAInstallBanner />
         </section>
 
         {/* Right: Name Input + 5 Core Menu Actions */}

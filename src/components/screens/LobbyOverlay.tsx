@@ -1,306 +1,509 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  AlertCircle,
   ArrowLeft,
-  ArrowRight,
-  Check,
-  Copy,
+  ClipboardPaste,
+  Globe,
+  KeyRound,
   Loader2,
-  Play,
+  PlusCircle,
+  RefreshCw,
   Users,
+  Wifi,
+  WifiOff,
+  X,
 } from 'lucide-react';
+import {
+  getConnectionStatusLabel,
+  isValidRoomCode,
+  normalizeRoomCode,
+  type ConnectionStatus,
+} from '../../shared/roomProtocol.ts';
 import type { RoomState } from '../../shared/types.ts';
 import type { LobbyMode } from '../../game/systems/ui/GameBridge.ts';
+import { WaitingRoomPanel } from './WaitingRoomPanel.tsx';
 
 interface Props {
   mode: LobbyMode;
   room: RoomState | null;
+  playerName: string;
+  myPlayerId: string;
   mySocketId: string | null;
+  connectionStatus: ConnectionStatus;
+  connectionError: string | null;
+  isCreatingRoom: boolean;
+  isJoiningRoom: boolean;
+  isStartingGame: boolean;
+  isTogglingReady: boolean;
   isSearchingMatch: boolean;
   errorText: string | null;
+  onPlayerNameChange: (name: string) => void;
   onBack: () => void;
-  onJoinCode: (code: string) => void;
+  onRetryConnection: () => void;
   onCreateCoopRoom: () => void;
-  onStartSoloPractice: () => void;
+  onJoinCode: (code: string) => void;
   onStartMatchmaking: () => void;
   onCancelMatchmaking: () => void;
+  onToggleReady: () => void;
+  onStartGame: () => void;
   onProceedCharacterSelect: () => void;
+  onLeaveRoom: () => void;
+  onNotifyToast: (msg: string) => void;
+  onClearError: () => void;
 }
+
+type LobbySubView = 'hub' | 'join';
 
 export const LobbyOverlay: React.FC<Props> = ({
   mode,
   room,
+  playerName,
+  myPlayerId,
   mySocketId,
+  connectionStatus,
+  connectionError,
+  isCreatingRoom,
+  isJoiningRoom,
+  isStartingGame,
+  isTogglingReady,
   isSearchingMatch,
   errorText,
+  onPlayerNameChange,
   onBack,
-  onJoinCode,
+  onRetryConnection,
   onCreateCoopRoom,
-  onStartSoloPractice,
+  onJoinCode,
   onStartMatchmaking,
   onCancelMatchmaking,
+  onToggleReady,
+  onStartGame,
   onProceedCharacterSelect,
+  onLeaveRoom,
+  onNotifyToast,
+  onClearError,
 }) => {
+  const [subView, setSubView] = useState<LobbySubView>(() =>
+    mode === 'join' ? 'join' : 'hub'
+  );
   const [joinInput, setJoinInput] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [localInputError, setLocalInputError] = useState<string | null>(null);
 
-  const isHost = Boolean(room && mySocketId && room.hostSocketId === mySocketId);
-  const canProceed = Boolean(room && room.members.length === 2);
+  useEffect(() => {
+    if (!room) {
+      setSubView(mode === 'join' ? 'join' : 'hub');
+    }
+  }, [mode, room]);
 
-  const handleCopyCode = async () => {
-    if (!room) return;
+  const normalizedPreview = normalizeRoomCode(joinInput);
+  const canSubmitJoin =
+    !isJoiningRoom &&
+    !isCreatingRoom &&
+    joinInput.trim().length >= 4 &&
+    connectionStatus !== 'ERROR';
+
+  const handleJoinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLocalInputError(null);
+    onClearError();
+
+    const normalized = normalizeRoomCode(joinInput);
+    if (!normalized) {
+      setLocalInputError('Masukkan kode room terlebih dahulu (contoh: LK-8F2K).');
+      return;
+    }
+    if (!isValidRoomCode(normalized)) {
+      setLocalInputError('Room tidak ditemukan. Periksa kode room dan coba lagi.');
+      return;
+    }
+    setJoinInput(normalized);
+    onJoinCode(normalized);
+  };
+
+  const handlePasteCode = async () => {
+    setLocalInputError(null);
+    onClearError();
     try {
-      await navigator.clipboard.writeText(room.code);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        const extracted = normalizeRoomCode(text);
+        if (extracted) {
+          setJoinInput(extracted);
+          onNotifyToast(`Kode ${extracted} ditempel.`);
+          return;
+        }
+      }
+      setLocalInputError('Clipboard kosong atau tidak berisi kode room.');
     } catch {
-      setCopied(false);
+      setLocalInputError('Izin tempel clipboard ditolak. Ketik kode room secara manual.');
     }
   };
 
+  const connectionBadgeStyle = (() => {
+    switch (connectionStatus) {
+      case 'CONNECTED':
+        return {
+          cls: 'bg-[#DCFCE7] border-[#86EFAC] text-[#166534]',
+          dot: 'bg-[#16A34A]',
+          icon: <Wifi className="w-3.5 h-3.5 shrink-0" />,
+        };
+      case 'CONNECTING':
+        return {
+          cls: 'bg-[#FEF3C7] border-[#FCD34D] text-[#92400E]',
+          dot: 'bg-[#D97706] animate-pulse',
+          icon: <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />,
+        };
+      case 'DISCONNECTED':
+        return {
+          cls: 'bg-[#FFEDD5] border-[#FDBA74] text-[#9A3412]',
+          dot: 'bg-[#EA580C]',
+          icon: <WifiOff className="w-3.5 h-3.5 shrink-0" />,
+        };
+      case 'ERROR':
+        return {
+          cls: 'bg-[#FEE2E2] border-[#FCA5A5] text-[#991B1B]',
+          dot: 'bg-[#DC2626]',
+          icon: <WifiOff className="w-3.5 h-3.5 shrink-0" />,
+        };
+    }
+  })();
+
+  const displayedError = localInputError || errorText || (connectionStatus === 'ERROR' ? connectionError : null);
+
+  const headerTitle = room
+    ? 'Waiting Room'
+    : subView === 'join'
+      ? 'Join Room'
+      : 'Lobby Room';
+
   return (
-    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-4 sm:p-6 overflow-y-auto">
-      <div className="w-full max-w-xl rounded-3xl bg-[#FFFDF9]/95 border border-[#3B2318]/15 p-5 sm:p-7 shadow-2xl">
-        <div className="flex items-center justify-between gap-3">
+    <div
+      className="absolute inset-0 z-20 flex flex-col items-center justify-start sm:justify-center overflow-y-auto px-3 py-3 sm:p-5"
+      style={{
+        paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
+        paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+      }}
+    >
+      <div className="w-full max-w-lg my-auto rounded-3xl bg-[#FFFDF9]/96 border-2 border-[#3B2318]/12 p-4 sm:p-6 shadow-2xl">
+        {/* HEADER: Back + Title + Real Connection Indicator */}
+        <header className="flex items-center justify-between gap-2 pb-3 border-b border-[#3B2318]/10">
           <button
             type="button"
-            onClick={onBack}
-            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-xl bg-[#FFF6EC] border border-[#3B2318]/12 text-sm font-semibold text-[#3B2318] hover:bg-[#FDEBD6] transition cursor-pointer"
+            onClick={() => {
+              if (!room && subView === 'join') {
+                setLocalInputError(null);
+                onClearError();
+                setSubView('hub');
+                return;
+              }
+              onBack();
+            }}
+            data-testid="btn-lobby-back"
+            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[42px] rounded-xl bg-[#FFF6EC] border border-[#3B2318]/14 text-xs sm:text-sm font-bold text-[#3B2318] hover:bg-[#FDEBD6] active:scale-[0.98] transition shrink-0 cursor-pointer"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4 shrink-0" />
             <span>Kembali</span>
           </button>
 
-          <h2 className="font-display text-xl sm:text-2xl font-bold text-[#3B2318]">
-            {mode === 'online'
-              ? 'Play Online'
-              : mode === 'join'
-                ? 'Join Room'
-                : 'Lobby Room'}
+          <h2 className="font-display text-lg sm:text-xl font-bold text-[#3B2318] truncate text-center">
+            {headerTitle}
           </h2>
-          <div className="w-20" />
-        </div>
 
-        {errorText && (
+          <button
+            type="button"
+            onClick={() => {
+              if (connectionStatus === 'DISCONNECTED' || connectionStatus === 'ERROR') {
+                onRetryConnection();
+              }
+            }}
+            title={
+              connectionStatus === 'CONNECTED'
+                ? 'Terhubung ke server multiplayer'
+                : 'Ketuk untuk menyambungkan ulang'
+            }
+            data-testid="lobby-connection-status"
+            data-status={connectionStatus}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 min-h-[36px] rounded-xl border text-[11px] sm:text-xs font-bold shrink-0 transition ${
+              connectionBadgeStyle.cls
+            } ${
+              connectionStatus === 'DISCONNECTED' || connectionStatus === 'ERROR'
+                ? 'cursor-pointer hover:opacity-90'
+                : 'cursor-default'
+            }`}
+          >
+            {connectionBadgeStyle.icon}
+            <span className="hidden xs:inline sm:inline">
+              {getConnectionStatusLabel(connectionStatus)}
+            </span>
+          </button>
+        </header>
+
+        {/* Error Alert Banner (Indonesian, human-friendly, with retry when needed) */}
+        {displayedError && (
           <div
             role="alert"
-            className="mt-4 rounded-xl bg-[#FEE2E2] border border-[#EF4444]/30 px-4 py-2.5 text-sm font-medium text-[#991B1B]"
+            data-testid="lobby-error-banner"
+            className="mt-3.5 rounded-2xl bg-[#FEF2F2] border border-[#EF4444]/35 px-3.5 py-3 text-xs sm:text-sm font-semibold text-[#991B1B] flex flex-col gap-2"
           >
-            {errorText}
-          </div>
-        )}
-
-        {/* Mode: PLAY ONLINE Matchmaking */}
-        {mode === 'online' && !room && (
-          <div className="mt-6 text-center">
-            {isSearchingMatch ? (
-              <div className="py-6 flex flex-col items-center">
-                <Loader2 className="w-11 h-11 text-[#FF5A6E] animate-spin" />
-                <p className="mt-4 font-display text-lg font-bold text-[#3B2318]">
-                  Mencari Partner Co-Op Online...
-                </p>
-                <p className="mt-1 text-sm text-[#7C5340] max-w-sm">
-                  Server Socket.IO akan langsung memasangkan kamu dengan pemain lain yang
-                  mengantre secara real-time.
-                </p>
-                <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                  <button
-                    type="button"
-                    onClick={onCancelMatchmaking}
-                    className="px-5 py-2.5 min-h-[44px] rounded-xl bg-[#FFF6EC] border border-[#3B2318]/15 text-sm font-semibold text-[#3B2318] hover:bg-[#FDEBD6] cursor-pointer"
-                  >
-                    Batalkan Antrean
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onStartSoloPractice}
-                    className="px-5 py-2.5 min-h-[44px] rounded-xl bg-[#F59E0B] text-white text-sm font-bold hover:bg-[#D97706] cursor-pointer"
-                  >
-                    Latihan Solo (Switch Role)
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="py-4 flex flex-col items-center gap-3.5">
-                <p className="text-sm text-[#6B4432]">
-                  Masuk antrean matchmaking real-time untuk dipasangkan dengan 1 partner.
-                </p>
-                <div className="flex flex-wrap items-center justify-center gap-2.5">
-                  <button
-                    type="button"
-                    onClick={onStartMatchmaking}
-                    className="px-7 py-3 min-h-[48px] rounded-2xl bg-[#FF5A6E] text-white font-display text-base font-bold hover:bg-[#E8485C] transition cursor-pointer"
-                  >
-                    Cari Partner Sekarang
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onStartSoloPractice}
-                    className="px-5 py-3 min-h-[48px] rounded-2xl bg-[#F59E0B] text-white font-display text-sm sm:text-base font-bold hover:bg-[#D97706] transition cursor-pointer"
-                  >
-                    Main Latihan Solo
-                  </button>
-                </div>
-              </div>
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-[#DC2626]" />
+              <span className="leading-snug">{displayedError}</span>
+            </div>
+            {(connectionStatus === 'ERROR' || connectionStatus === 'DISCONNECTED') && (
+              <button
+                type="button"
+                onClick={onRetryConnection}
+                className="self-start inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#EF4444]/35 text-xs font-bold text-[#991B1B] hover:bg-[#FEE2E2] cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Coba Sambungkan Ulang</span>
+              </button>
             )}
           </div>
         )}
 
-        {/* Mode: JOIN ROOM Form */}
-        {mode === 'join' && !room && (
+        {/* ACTIVE WAITING ROOM (Server-confirmed room) */}
+        {room ? (
+          <WaitingRoomPanel
+            room={room}
+            myPlayerId={myPlayerId}
+            mySocketId={mySocketId}
+            isStartingGame={isStartingGame}
+            isTogglingReady={isTogglingReady}
+            onCopySuccess={onNotifyToast}
+            onToggleReady={onToggleReady}
+            onStartGame={onStartGame}
+            onOpenCharacterPreview={onProceedCharacterSelect}
+            onLeaveRoom={onLeaveRoom}
+          />
+        ) : subView === 'join' ? (
+          /* JOIN ROOM VIEW */
           <form
-            className="mt-6 flex flex-col gap-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (joinInput.trim()) onJoinCode(joinInput.trim().toUpperCase());
-            }}
+            className="mt-4 flex flex-col gap-3.5"
+            onSubmit={handleJoinSubmit}
+            data-testid="join-room-form"
           >
-            <div>
-              <label
-                htmlFor="room-code-input"
-                className="block text-xs font-semibold text-[#7C5340] mb-1.5"
-              >
-                Masukkan Kode Room (6 karakter)
-              </label>
-              <input
-                id="room-code-input"
-                type="text"
-                maxLength={8}
-                value={joinInput}
-                onChange={(e) => setJoinInput(e.target.value.toUpperCase())}
-                placeholder="Contoh: LK4X9A"
-                className="w-full rounded-2xl bg-[#FFF6EC] border-2 border-[#3B2318]/15 px-4 py-3.5 text-center font-mono-num text-2xl font-bold tracking-[0.2em] text-[#3B2318] uppercase focus:outline-none focus:border-[#FF5A6E]"
-              />
+            <div className="rounded-2xl bg-[#FFF6EC] border border-[#3B2318]/12 p-3.5 sm:p-4 flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-2">
+                <label
+                  htmlFor="room-code-input"
+                  className="text-xs font-bold uppercase tracking-wider text-[#7C5340]"
+                >
+                  ENTER ROOM CODE
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void handlePasteCode()}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-[#3B2318]/14 text-xs font-bold text-[#3B2318] hover:bg-[#FDEBD6] cursor-pointer"
+                >
+                  <ClipboardPaste className="w-3.5 h-3.5 text-[#FF5A6E]" />
+                  <span>Tempel</span>
+                </button>
+              </div>
+
+              <div className="relative">
+                <input
+                  id="room-code-input"
+                  data-testid="input-room-code"
+                  type="text"
+                  inputMode="text"
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  maxLength={80}
+                  value={joinInput}
+                  onChange={(e) => {
+                    setLocalInputError(null);
+                    onClearError();
+                    setJoinInput(e.target.value.toUpperCase());
+                  }}
+                  placeholder="LK-8F2K"
+                  className="w-full rounded-2xl bg-white border-2 border-[#3B2318]/16 px-4 pr-11 py-3.5 text-center font-mono-num text-2xl font-extrabold tracking-[0.16em] text-[#3B2318] uppercase placeholder:text-[#3B2318]/25 focus:outline-none focus:border-[#FF5A6E]"
+                />
+                {joinInput.length > 0 && (
+                  <button
+                    type="button"
+                    aria-label="Hapus kode room"
+                    onClick={() => {
+                      setJoinInput('');
+                      setLocalInputError(null);
+                      onClearError();
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-[#FFF6EC] text-[#7C5340] hover:bg-[#FDEBD6] flex items-center justify-center cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              <p className="text-[11px] text-[#7C5340] text-center">
+                {normalizedPreview && isValidRoomCode(normalizedPreview) ? (
+                  <span className="text-[#15803D] font-semibold">
+                    Kode terbaca: <strong className="font-mono-num">{normalizedPreview}</strong>
+                  </span>
+                ) : (
+                  <span>Ketik atau tempel kode undangan dari partner (contoh: LK-8F2K)</span>
+                )}
+              </p>
             </div>
 
             <button
               type="submit"
-              disabled={joinInput.trim().length < 4}
-              className="w-full min-h-[48px] rounded-2xl bg-[#FF5A6E] text-white font-display text-base font-bold hover:bg-[#E8485C] disabled:opacity-45 transition cursor-pointer"
+              disabled={!canSubmitJoin}
+              data-testid="btn-submit-join-room"
+              className="w-full min-h-[50px] px-5 py-3 rounded-2xl bg-[#FF5A6E] text-white font-display text-base font-bold shadow-md hover:bg-[#E8485C] disabled:opacity-45 disabled:cursor-not-allowed active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer"
             >
-              Masuk ke Room
+              {isJoiningRoom ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>BERGABUNG KE ROOM...</span>
+                </>
+              ) : (
+                <>
+                  <KeyRound className="w-5 h-5" />
+                  <span>JOIN ROOM</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setLocalInputError(null);
+                onClearError();
+                setSubView('hub');
+              }}
+              className="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-[#FFF6EC] border border-[#3B2318]/14 text-xs sm:text-sm font-bold text-[#5C3A28] hover:bg-[#FDEBD6] transition cursor-pointer"
+            >
+              Atau Buat Room Baru
             </button>
           </form>
-        )}
+        ) : (
+          /* LOBBY HUB: Create Room + Join Room + Optional Quick Matchmaking */
+          <div className="mt-4 flex flex-col gap-3.5" data-testid="lobby-hub-view">
+            {/* Compact Player Name Row */}
+            <div className="rounded-2xl bg-[#FFF6EC] border border-[#3B2318]/12 px-3.5 py-2.5 flex items-center justify-between gap-3">
+              <label
+                htmlFor="lobby-player-name"
+                className="text-xs font-bold text-[#7C5340] whitespace-nowrap"
+              >
+                Nama Pemain
+              </label>
+              <input
+                id="lobby-player-name"
+                type="text"
+                maxLength={18}
+                value={playerName}
+                onChange={(e) => onPlayerNameChange(e.target.value)}
+                placeholder="Chef Leo"
+                className="w-full max-w-[200px] rounded-xl bg-white border border-[#3B2318]/14 px-3 py-1.5 text-sm font-bold text-[#3B2318] text-right focus:outline-none focus:border-[#FF5A6E]"
+              />
+            </div>
 
-        {/* Active Room Waiting View */}
-        {room && (
-          <div className="mt-5 flex flex-col gap-5">
-            <div className="rounded-2xl bg-[#FFF6EC] border border-[#3B2318]/12 p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold text-[#7C5340]">Kode Room Multiplayer</p>
-                <p className="font-mono-num text-3xl font-bold tracking-[0.18em] text-[#3B2318]">
-                  {room.code}
-                </p>
-              </div>
+            {/* Primary Actions: BUAT ROOM BARU & JOIN ROOM */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={isCreatingRoom || isJoiningRoom || isSearchingMatch}
+                onClick={() => {
+                  onClearError();
+                  onCreateCoopRoom();
+                }}
+                data-testid="btn-create-new-room"
+                className="min-h-[84px] sm:min-h-[104px] p-4 rounded-2xl bg-[#FF5A6E] text-white shadow-md hover:bg-[#E8485C] disabled:opacity-55 active:scale-[0.98] transition flex sm:flex-col items-center sm:items-start justify-between gap-3 text-left cursor-pointer"
+              >
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                  {isCreatingRoom ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <PlusCircle className="w-5 h-5" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-display text-base font-bold leading-tight">
+                    {isCreatingRoom ? 'MEMBUAT ROOM...' : 'BUAT ROOM BARU'}
+                  </p>
+                  <p className="text-xs text-white/90 mt-0.5 leading-snug">
+                    Jadi Host (Chef) &amp; dapatkan kode undangan.
+                  </p>
+                </div>
+              </button>
 
               <button
                 type="button"
-                onClick={() => void handleCopyCode()}
-                className="inline-flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-xl bg-white border border-[#3B2318]/15 text-sm font-semibold text-[#3B2318] hover:bg-[#FDEBD6] transition cursor-pointer"
+                disabled={isCreatingRoom || isJoiningRoom || isSearchingMatch}
+                onClick={() => {
+                  setLocalInputError(null);
+                  onClearError();
+                  setSubView('join');
+                }}
+                data-testid="btn-open-join-room"
+                className="min-h-[84px] sm:min-h-[104px] p-4 rounded-2xl bg-[#3B2318] text-white shadow-md hover:bg-[#523224] disabled:opacity-55 active:scale-[0.98] transition flex sm:flex-col items-center sm:items-start justify-between gap-3 text-left cursor-pointer"
               >
-                {copied ? (
-                  <>
-                    <Check className="w-4 h-4 text-[#16A34A]" />
-                    <span>Tersalin!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4 text-[#FF5A6E]" />
-                    <span>Salin Kode</span>
-                  </>
-                )}
+                <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+                  <Users className="w-5 h-5 text-[#FDE68A]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-display text-base font-bold leading-tight">JOIN ROOM</p>
+                  <p className="text-xs text-[#FFF0E6]/85 mt-0.5 leading-snug">
+                    Masukkan kode room partner &amp; main sebagai Waiter.
+                  </p>
+                </div>
               </button>
             </div>
 
-            {/* Real Connected Players */}
-            <div>
-              <div className="flex items-center justify-between text-xs font-semibold text-[#7C5340] mb-2">
-                <span className="inline-flex items-center gap-1.5">
-                  <Users className="w-4 h-4" />
-                  Pemain Terhubung
-                </span>
-                <span className="font-mono-num">
-                  {room.members.length} / {room.maxPlayers}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {[0, 1].map((slotIdx) => {
-                  const member = room.members[slotIdx];
-                  return (
-                    <div
-                      key={slotIdx}
-                      className={`rounded-2xl p-3.5 border ${
-                        member
-                          ? 'bg-white border-[#3B2318]/15'
-                          : 'bg-[#FFF6EC]/60 border-dashed border-[#3B2318]/20'
-                      }`}
-                    >
-                      {member ? (
-                        <div>
-                          <p className="font-display font-bold text-[#3B2318] truncate">
-                            {member.name}
-                            {member.socketId === mySocketId ? ' (Kamu)' : ''}
-                          </p>
-                          <p className="text-xs text-[#7C5340] mt-0.5">
-                            {member.isHost ? 'Host Room' : 'Partner Co-Op'} · Terhubung
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="text-xs text-[#8C6754] py-1">
-                          Menunggu Pemain 2 bergabung menggunakan kode{' '}
-                          <strong className="font-mono-num">{room.code}</strong>...
-                        </div>
-                      )}
+            {/* Optional Quick Online Matchmaking Strip */}
+            <div className="rounded-2xl bg-[#FFF6EC]/85 border border-[#3B2318]/12 p-3.5">
+              {isSearchingMatch ? (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 text-left">
+                    <Loader2 className="w-5 h-5 text-[#FF5A6E] animate-spin shrink-0" />
+                    <div>
+                      <p className="text-sm font-bold text-[#3B2318]">
+                        Mencari Partner Online...
+                      </p>
+                      <p className="text-xs text-[#7C5340]">
+                        Menunggu pemain lain di antrean server.
+                      </p>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onCancelMatchmaking}
+                    className="w-full sm:w-auto px-4 py-2 min-h-[40px] rounded-xl bg-white border border-[#3B2318]/15 text-xs font-bold text-[#3B2318] hover:bg-[#FDEBD6] cursor-pointer"
+                  >
+                    Batalkan
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5 text-left w-full sm:w-auto">
+                    <div className="w-9 h-9 rounded-xl bg-[#FFE4E8] text-[#FF5A6E] flex items-center justify-center shrink-0">
+                      <Globe className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs sm:text-sm font-bold text-[#3B2318]">
+                        Matchmaking Otomatis
+                      </p>
+                      <p className="text-[11px] text-[#7C5340]">
+                        Cari partner acak secara real-time tanpa kode.
+                      </p>
+                    </div>
+                  </div>
 
-            {/* Actions */}
-            <div className="flex flex-col sm:flex-row gap-2.5">
-              {isHost && canProceed && (
-                <button
-                  type="button"
-                  onClick={onProceedCharacterSelect}
-                  className="flex-1 min-h-[48px] px-5 py-3 rounded-2xl bg-[#FF5A6E] text-white font-display text-base font-bold hover:bg-[#E8485C] transition flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <span>Pilih Karakter (Chef &amp; Waiter)</span>
-                  <ArrowRight className="w-5 h-5" />
-                </button>
-              )}
-
-              {!canProceed && (
-                <button
-                  type="button"
-                  onClick={onStartSoloPractice}
-                  className="flex-1 min-h-[46px] px-4 py-2.5 rounded-2xl bg-[#F59E0B] text-white font-display text-sm sm:text-base font-bold hover:bg-[#D97706] transition flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Play className="w-4 h-4" />
-                  <span>Coba Solo Practice (Kontrol Chef &amp; Waiter)</span>
-                </button>
-              )}
-
-              {!isHost && canProceed && (
-                <div className="flex-1 text-center py-3 text-sm font-semibold text-[#7C5340]">
-                  Menunggu Host melanjutkan ke Pemilihan Karakter...
+                  <button
+                    type="button"
+                    disabled={isCreatingRoom || isJoiningRoom || connectionStatus === 'ERROR'}
+                    onClick={() => {
+                      onClearError();
+                      onStartMatchmaking();
+                    }}
+                    className="w-full sm:w-auto px-4 py-2 min-h-[40px] rounded-xl bg-white border border-[#3B2318]/16 text-xs font-bold text-[#3B2318] hover:bg-[#FDEBD6] disabled:opacity-45 shrink-0 cursor-pointer"
+                  >
+                    Cari Partner
+                  </button>
                 </div>
               )}
             </div>
-          </div>
-        )}
-
-        {/* Fallback Create Room button if somehow in create mode without room */}
-        {mode === 'create' && !room && (
-          <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={onCreateCoopRoom}
-              className="px-6 py-3 min-h-[48px] rounded-2xl bg-[#FF5A6E] text-white font-display font-bold hover:bg-[#E8485C] cursor-pointer"
-            >
-              Buat Room Baru
-            </button>
           </div>
         )}
       </div>
