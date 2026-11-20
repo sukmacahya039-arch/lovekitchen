@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ArrowLeftRight,
+  ChefHat,
   Clock,
   Gamepad2,
   Hand,
@@ -14,7 +14,12 @@ import {
   X,
 } from 'lucide-react';
 import { RECIPES } from '../../shared/recipes.ts';
-import type { CharacterAnimState, GameSnapshot, PlayerRole } from '../../shared/types.ts';
+import {
+  isSoloControlMode,
+  type CharacterAnimState,
+  type GameSnapshot,
+  type PlayerRole,
+} from '../../shared/types.ts';
 import { gameBridge } from '../../game/systems/ui/GameBridge.ts';
 
 interface Props {
@@ -22,7 +27,7 @@ interface Props {
   activeRole: PlayerRole;
   isCharacterMoving: boolean;
   onPause: () => void;
-  onSwapPracticeRole: () => void;
+  onSelectRole: (role: PlayerRole) => void;
   onSendEmote: (text: string, anim?: CharacterAnimState) => void;
 }
 
@@ -31,7 +36,7 @@ export const RestaurantHUD: React.FC<Props> = ({
   activeRole,
   isCharacterMoving,
   onPause,
-  onSwapPracticeRole,
+  onSelectRole,
   onSendEmote,
 }) => {
   const [showPortraitTip, setShowPortraitTip] = useState(false);
@@ -68,6 +73,13 @@ export const RestaurantHUD: React.FC<Props> = ({
           : 0;
 
   const myAvatar = snapshot.players[activeRole];
+  const isSolo = isSoloControlMode(snapshot.mode);
+  const nextStarTarget =
+    snapshot.score < snapshot.targetScores[0]
+      ? snapshot.targetScores[0]
+      : snapshot.score < snapshot.targetScores[1]
+        ? snapshot.targetScores[1]
+        : snapshot.targetScores[2];
 
   const handleJoyStart = (e: React.PointerEvent<HTMLDivElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -110,14 +122,19 @@ export const RestaurantHUD: React.FC<Props> = ({
       {/* Compact Top HUD Strip */}
       <div className="w-full max-w-6xl mx-auto flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
-          {/* Left: Score & Stars */}
+          {/* Left: Score, Stars & Solo Objective */}
           <div
             onPointerDown={stopCanvasLeak}
-            className="pointer-events-auto flex items-center gap-3 rounded-2xl bg-[#FFFDF9]/92 border border-[#3B2318]/15 px-3 py-1.5 shadow-sm"
+            className="pointer-events-auto flex items-center gap-2.5 sm:gap-3 rounded-2xl bg-[#FFFDF9]/92 border border-[#3B2318]/15 px-3 py-1.5 shadow-sm"
           >
             <div>
-              <div className="font-mono-num text-base sm:text-lg font-bold text-[#15803D] leading-tight">
-                ${snapshot.score}
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-mono-num text-base sm:text-lg font-bold text-[#15803D] leading-tight">
+                  ${snapshot.score}
+                </span>
+                <span className="hidden sm:inline font-mono-num text-[11px] font-semibold text-[#8B5E4B]">
+                  / ${nextStarTarget}
+                </span>
               </div>
               <div className="flex items-center gap-0.5 mt-0.5">
                 {[1, 2, 3].map((n) => (
@@ -130,6 +147,11 @@ export const RestaurantHUD: React.FC<Props> = ({
                     }`}
                   />
                 ))}
+                {isSolo && (
+                  <span className="ml-1.5 text-[10px] font-extrabold tracking-wider text-[#B45309] uppercase">
+                    SOLO
+                  </span>
+                )}
               </div>
             </div>
 
@@ -152,22 +174,48 @@ export const RestaurantHUD: React.FC<Props> = ({
             <span>{timerStr}</span>
           </div>
 
-          {/* Right: Active Role / Swap (Practice) / Pause */}
+          {/* Right: Segmented Role Switcher (Solo) / Role Label (Online) + Order Queue + Pause */}
           <div
             onPointerDown={stopCanvasLeak}
             className="pointer-events-auto flex items-center gap-1.5"
           >
-            {snapshot.mode === 'practice' ? (
-              <button
-                type="button"
-                onClick={onSwapPracticeRole}
-                className={`inline-flex items-center gap-1.5 min-h-[40px] px-3 py-1.5 rounded-xl font-display text-xs sm:text-sm font-bold text-white shadow-sm transition active:scale-95 whitespace-nowrap cursor-pointer ${
-                  activeRole === 'chef' ? 'bg-[#D97706]' : 'bg-[#EC4899]'
-                }`}
+            {isSolo ? (
+              <div
+                role="group"
+                aria-label="Pilih Peran Aktif"
+                className="inline-flex items-center p-0.5 rounded-2xl bg-[#FFFDF9]/95 border border-[#3B2318]/18 shadow-sm"
               >
-                <ArrowLeftRight className="w-4 h-4 shrink-0" />
-                <span>{activeRole === 'chef' ? 'Chef (Tab)' : 'Waiter (Tab)'}</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => onSelectRole('waiter')}
+                  aria-pressed={activeRole === 'waiter'}
+                  data-testid="role-switch-waiter"
+                  title="Kontrol Waiter (Tombol 2 atau Tab)"
+                  className={`inline-flex items-center gap-1.5 min-h-[44px] px-2.5 sm:px-3 rounded-xl font-display text-xs sm:text-sm font-bold transition active:scale-96 whitespace-nowrap cursor-pointer ${
+                    activeRole === 'waiter'
+                      ? 'bg-[#EC4899] text-white shadow-xs'
+                      : 'text-[#6B4432] hover:bg-[#FFF0F6]'
+                  }`}
+                >
+                  <UtensilsCrossed className="w-4 h-4 shrink-0" />
+                  <span>Waiter</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSelectRole('chef')}
+                  aria-pressed={activeRole === 'chef'}
+                  data-testid="role-switch-chef"
+                  title="Kontrol Chef (Tombol 1 atau Tab)"
+                  className={`inline-flex items-center gap-1.5 min-h-[44px] px-2.5 sm:px-3 rounded-xl font-display text-xs sm:text-sm font-bold transition active:scale-96 whitespace-nowrap cursor-pointer ${
+                    activeRole === 'chef'
+                      ? 'bg-[#D97706] text-white shadow-xs'
+                      : 'text-[#6B4432] hover:bg-[#FEF3C7]'
+                  }`}
+                >
+                  <ChefHat className="w-4 h-4 shrink-0" />
+                  <span>Chef</span>
+                </button>
+              </div>
             ) : (
               <div className="hidden sm:flex items-center rounded-xl bg-[#FFFDF9]/90 border border-[#3B2318]/15 px-3 py-1.5 text-xs font-bold text-[#3B2318] whitespace-nowrap">
                 {activeRole === 'chef' ? 'Chef Cowok' : 'Waiter Wanita'}
@@ -178,14 +226,14 @@ export const RestaurantHUD: React.FC<Props> = ({
               type="button"
               onClick={() => gameBridge.setKitchenBoardOpen(true)}
               aria-label="Buka Papan Pesanan Dapur"
-              className={`inline-flex items-center gap-1.5 min-h-[40px] px-3 py-1.5 rounded-xl border font-display text-xs sm:text-sm font-bold shadow-sm transition active:scale-95 whitespace-nowrap cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 min-h-[44px] px-3 py-1.5 rounded-xl border font-display text-xs sm:text-sm font-bold shadow-sm transition active:scale-95 whitespace-nowrap cursor-pointer ${
                 (snapshot.orderSystem?.metrics.pendingCount ?? 0) > 0
                   ? 'bg-[#FFF3E3] border-[#EA580C]/45 text-[#9A3412]'
                   : 'bg-[#FFFDF9]/92 border-[#3B2318]/15 text-[#3B2318] hover:bg-white'
               }`}
             >
               <ReceiptText className="w-4 h-4 shrink-0 text-[#EA580C]" />
-              <span>Order</span>
+              <span className="hidden sm:inline">Order</span>
               <span className="font-mono-num text-xs font-extrabold px-1.5 py-0.5 rounded-md bg-[#3B2318] text-white">
                 {(snapshot.orderSystem?.metrics.pendingCount ?? 0) +
                   (snapshot.orderSystem?.metrics.activeCount ?? 0)}
@@ -196,7 +244,7 @@ export const RestaurantHUD: React.FC<Props> = ({
               type="button"
               onClick={onPause}
               aria-label="Pause"
-              className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl bg-[#FFFDF9]/92 border border-[#3B2318]/15 text-[#3B2318] hover:bg-white shadow-sm cursor-pointer"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-[#FFFDF9]/92 border border-[#3B2318]/15 text-[#3B2318] hover:bg-white shadow-sm cursor-pointer"
             >
               <Pause className="w-4 h-4" />
             </button>
@@ -265,6 +313,20 @@ export const RestaurantHUD: React.FC<Props> = ({
                   )}
                 </span>
               </span>
+              {isSolo && (
+                <>
+                  <span aria-hidden="true" className="text-[#D6C2B2]">
+                    |
+                  </span>
+                  <span
+                    className={`font-bold whitespace-nowrap ${
+                      activeRole === 'chef' ? 'text-[#B45309]' : 'text-[#BE185D]'
+                    }`}
+                  >
+                    {activeRole === 'chef' ? 'Chef Aktif' : 'Waiter Aktif'}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         )}

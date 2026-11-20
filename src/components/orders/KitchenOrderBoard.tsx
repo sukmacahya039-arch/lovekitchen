@@ -11,10 +11,10 @@ import {
 } from 'lucide-react';
 import { audioManager } from '../../game/systems/audio/AudioManager.ts';
 import { MenuService } from '../../game/systems/menu/MenuService.ts';
-import { socketService } from '../../game/systems/multiplayer/SocketService.ts';
+import { gameSessionManager } from '../../game/systems/session/GameSessionManager.ts';
 import type { Order, OrderStatus } from '../../game/systems/orders/OrderTypes.ts';
 import { gameBridge } from '../../game/systems/ui/GameBridge.ts';
-import type { GameSnapshot, PlayerRole } from '../../shared/types.ts';
+import { isSoloControlMode, type GameSnapshot, type PlayerRole } from '../../shared/types.ts';
 import { MenuFoodIcon } from './MenuFoodIcon.tsx';
 
 type BoardTab = 'PENDING' | 'ACTIVE' | 'HISTORY';
@@ -114,7 +114,7 @@ export const KitchenOrderBoard: React.FC<Props> = ({
     [allOrders]
   );
 
-  const canAcceptAsChef = activeRole === 'chef' || snapshot.mode === 'practice';
+  const canAcceptAsChef = activeRole === 'chef' || isSoloControlMode(snapshot.mode);
 
   const handleAccept = async (order: Order) => {
     if (!canAcceptAsChef) {
@@ -123,7 +123,7 @@ export const KitchenOrderBoard: React.FC<Props> = ({
     }
     setBusyOrderId(order.orderId);
     try {
-      const res = await socketService.acceptKitchenOrder(order.orderId);
+      const res = await gameSessionManager.acceptKitchenOrder(order.orderId);
       if (res.ok) {
         audioManager.playSfx('ready');
         gameBridge.showToast(`CHEF MENERIMA ${order.orderNumber} (${order.tableLabel})!`, 2600);
@@ -139,7 +139,7 @@ export const KitchenOrderBoard: React.FC<Props> = ({
   const handleCancel = async (order: Order) => {
     setBusyOrderId(order.orderId);
     try {
-      const res = await socketService.cancelKitchenOrder(order.orderId, 'cancelled_from_kitchen_board');
+      const res = await gameSessionManager.cancelKitchenOrder(order.orderId, 'cancelled_from_kitchen_board');
       if (res.ok) {
         audioManager.playSfx('click');
         gameBridge.showToast(`Pesanan ${order.orderNumber} dibatalkan.`);

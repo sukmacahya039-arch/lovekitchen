@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import type { PlayerRole } from '../../../shared/types.ts';
 import { MOVEMENT_CONFIG } from '../../config/movementConfig.ts';
 import { InteractionSystem, type InteractableObject } from '../interaction/InteractionSystem.ts';
 import { isoToGrid } from '../restaurant/IsometricGrid.ts';
@@ -10,6 +11,7 @@ export interface InputCallbacks {
   onTriggerInteractKey: () => void;
   onCancelOrPauseKey: () => void;
   onSwapPracticeRoleKey: () => void;
+  onSelectRoleKey?: (role: PlayerRole) => void;
   onToggleDebugKey: () => void;
   onUnlockAudio: () => void;
 }
@@ -50,6 +52,8 @@ export class InputController {
     SPACE: Phaser.Input.Keyboard.Key;
     E: Phaser.Input.Keyboard.Key;
     TAB: Phaser.Input.Keyboard.Key;
+    ONE: Phaser.Input.Keyboard.Key;
+    TWO: Phaser.Input.Keyboard.Key;
     ESC: Phaser.Input.Keyboard.Key;
     F3: Phaser.Input.Keyboard.Key;
   };
@@ -164,16 +168,33 @@ export class InputController {
       SPACE: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
       E: kb.addKey(Phaser.Input.Keyboard.KeyCodes.E),
       TAB: kb.addKey(Phaser.Input.Keyboard.KeyCodes.TAB),
+      ONE: kb.addKey(Phaser.Input.Keyboard.KeyCodes.ONE),
+      TWO: kb.addKey(Phaser.Input.Keyboard.KeyCodes.TWO),
       ESC: kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC),
       F3: kb.addKey(Phaser.Input.Keyboard.KeyCodes.F3),
     };
 
-    this.keys.SPACE.on('down', () => this.callbacks.onTriggerInteractKey());
-    this.keys.E.on('down', () => this.callbacks.onTriggerInteractKey());
+    this.keys.SPACE.on('down', () => {
+      if (!this.callbacks.isGameplayActive()) return;
+      this.callbacks.onTriggerInteractKey();
+    });
+    this.keys.E.on('down', () => {
+      if (!this.callbacks.isGameplayActive()) return;
+      this.callbacks.onTriggerInteractKey();
+    });
     this.keys.ESC.on('down', () => this.callbacks.onCancelOrPauseKey());
     this.keys.TAB.on('down', (event: KeyboardEvent) => {
+      if (!this.callbacks.isGameplayActive()) return;
       event.preventDefault();
       this.callbacks.onSwapPracticeRoleKey();
+    });
+    this.keys.ONE.on('down', () => {
+      if (!this.callbacks.isGameplayActive()) return;
+      this.callbacks.onSelectRoleKey?.('chef');
+    });
+    this.keys.TWO.on('down', () => {
+      if (!this.callbacks.isGameplayActive()) return;
+      this.callbacks.onSelectRoleKey?.('waiter');
     });
     this.keys.F3.on('down', (event: KeyboardEvent) => {
       event.preventDefault();
@@ -217,6 +238,8 @@ export class InputController {
       this.keys.E.removeAllListeners();
       this.keys.ESC.removeAllListeners();
       this.keys.TAB.removeAllListeners();
+      this.keys.ONE.removeAllListeners();
+      this.keys.TWO.removeAllListeners();
       this.keys.F3.removeAllListeners();
     }
   }

@@ -6,6 +6,7 @@ import {
   Heart,
   LogIn,
   LogOut,
+  Play,
   PlusCircle,
   Settings,
   Users,
@@ -19,6 +20,7 @@ interface Props {
   profile: PlayerProfileData | null;
   playerName: string;
   onPlayerNameChange: (name: string) => void;
+  onStartSolo: () => void;
   onPlayOnline: () => void;
   onCreateRoom: () => void;
   onJoinRoom: () => void;
@@ -35,6 +37,7 @@ export const MainMenuOverlay: React.FC<Props> = ({
   profile,
   playerName,
   onPlayerNameChange,
+  onStartSolo,
   onPlayOnline,
   onCreateRoom,
   onJoinRoom,
@@ -108,7 +111,7 @@ export const MainMenuOverlay: React.FC<Props> = ({
                 LOVE KITCHEN
               </h1>
               <p className="text-xs sm:text-sm text-[#FFF0E6]/90 mt-0.5">
-                2.5D Co-Op Restaurant Rush · 2 Pemain (Chef &amp; Waiter)
+                2.5D Restaurant Rush · Latihan Solo &amp; Co-Op Online (Chef &amp; Waiter)
               </p>
             </div>
           </div>
@@ -156,7 +159,18 @@ export const MainMenuOverlay: React.FC<Props> = ({
           <div className="flex flex-col gap-2.5">
             <button
               type="button"
+              onClick={onStartSolo}
+              data-testid="btn-latihan-solo"
+              className="w-full min-h-[50px] px-5 py-3 rounded-2xl bg-[#F59E0B] text-white font-display text-base sm:text-lg font-bold shadow-md hover:bg-[#D97706] active:scale-[0.98] transition flex items-center justify-center gap-2.5 whitespace-nowrap cursor-pointer"
+            >
+              <Play className="w-5 h-5 fill-white shrink-0" />
+              <span>LATIHAN SOLO</span>
+            </button>
+
+            <button
+              type="button"
               onClick={onPlayOnline}
+              data-testid="btn-play-online"
               className="w-full min-h-[48px] px-5 py-3 rounded-2xl bg-[#FF5A6E] text-white font-display text-base sm:text-lg font-bold shadow-md hover:bg-[#EB465B] active:scale-[0.98] transition flex items-center justify-center gap-2.5 whitespace-nowrap cursor-pointer"
             >
               <Globe className="w-5 h-5 shrink-0" />
@@ -167,9 +181,9 @@ export const MainMenuOverlay: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={onCreateRoom}
-                className="min-h-[46px] px-3 py-2.5 rounded-2xl bg-[#F59E0B] text-white font-display text-sm sm:text-base font-bold shadow-sm hover:bg-[#D97706] active:scale-[0.98] transition flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer"
+                className="min-h-[46px] px-3 py-2.5 rounded-2xl bg-[#FFF6EC] border border-[#3B2318]/18 text-[#3B2318] font-display text-sm sm:text-base font-bold shadow-xs hover:bg-[#FDEBD6] active:scale-[0.98] transition flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer"
               >
-                <PlusCircle className="w-4 h-4 shrink-0" />
+                <PlusCircle className="w-4 h-4 text-[#D97706] shrink-0" />
                 <span>CREATE ROOM</span>
               </button>
 

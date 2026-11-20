@@ -20,6 +20,7 @@ import type {
   DishId,
   FacingDirection,
   GameEffectEvent,
+  GameMode,
   GameSnapshot,
   KitchenOrder,
   MatchSummary,
@@ -35,6 +36,7 @@ import type {
   WaitingCustomer,
 } from '../../src/shared/types.ts';
 import { CollisionSystem } from '../../src/game/systems/collision/CollisionSystem.ts';
+import type { CustomerSystemConfig } from '../../src/game/systems/customer/CustomerConfig.ts';
 import { CustomerManager } from '../../src/game/systems/customer/CustomerManager.ts';
 import { GameEventBus } from '../../src/game/systems/events/GameEvents.ts';
 import { MenuService } from '../../src/game/systems/menu/MenuService.ts';
@@ -42,10 +44,20 @@ import { NavigationGrid } from '../../src/game/systems/navigation/NavigationGrid
 import { PathfindingService } from '../../src/game/systems/navigation/PathfindingService.ts';
 import { OrderService } from '../../src/game/systems/orders/OrderService.ts';
 import { RecipeService } from '../../src/game/systems/recipe/RecipeService.ts';
+import {
+  COOP_DEFAULT_BALANCE,
+  SOLO_BALANCE_CONFIG,
+} from '../../src/game/systems/solo/SoloConfig.ts';
 import { TableManager } from '../../src/game/systems/table/TableManager.ts';
 
-const SHIFT_DURATION_SECONDS = 150; // 2m 30s action-packed cooperative shift
-const TARGET_SCORES: [number, number, number] = [450, 950, 1550];
+export interface SimulationBalanceOptions {
+  shiftDurationSeconds?: number;
+  targetScores?: [number, number, number];
+  activeTableCount?: number;
+  cookDurationMultiplier?: number;
+  burnDurationMultiplier?: number;
+  customerConfig?: Partial<CustomerSystemConfig>;
+}
 
 function mapPhase05ToLegacyTableStatus(status: RestaurantTableState): TableStatus {
   switch (status) {
@@ -71,9 +83,14 @@ function mapPhase05ToLegacyTableStatus(status: RestaurantTableState): TableStatu
 
 export class GameSimulation {
   private roomCode: string;
-  private mode: 'coop' | 'practice';
+  private mode: GameMode;
   private phase: RoomPhase = 'playing';
-  private timeRemaining: number = SHIFT_DURATION_SECONDS;
+  private shiftDurationSeconds: number;
+  private targetScores: [number, number, number];
+  private activeTableCount: number;
+  private cookDurationMultiplier: number;
+  private burnDurationMultiplier: number;
+  private timeRemaining: number;
   private score = 0;
   private combo = 0;
   private maxCombo = 0;
@@ -95,7 +112,7 @@ export class GameSimulation {
   private waiterCleanBuffUntil = 0;
   private recentEvents: GameEffectEvent[] = [];
 
-  // Phase 04, 05 & 06 authoritative server-side systems (single source of truth)
+  // Phase 04, 05 & 06 authoritative simulation systems (shared single source of truth for Co-Op & Solo)
   private navGrid: NavigationGrid;
   private pathfinding: PathfindingService;
   private collision: CollisionSystem;
@@ -112,14 +129,31 @@ export class GameSimulation {
 
   constructor(
     roomCode: string,
-    mode: 'coop' | 'practice',
+    mode: GameMode,
     chefInfo: { socketId: string; name: string },
     waiterInfo: { socketId: string; name: string },
-    onFinish?: (summary: MatchSummary) => void
+    onFinish?: (summary: MatchSummary) => void,
+    balanceOptions?: SimulationBalanceOptions
   ) {
     this.roomCode = roomCode;
     this.mode = mode;
     this.onFinish = onFinish;
+
+    const isSoloBalanced = mode === 'solo';
+    const baseBalance = isSoloBalanced ? SOLO_BALANCE_CONFIG : COOP_DEFAULT_BALANCE;
+
+    this.shiftDurationSeconds =
+      balanceOptions?.shiftDurationSeconds ?? baseBalance.shiftDurationSeconds;
+    this.targetScores = balanceOptions?.targetScores
+      ? [...balanceOptions.targetScores] as [number, number, number]
+      : [...baseBalance.targetScores] as [number, number, number];
+    this.activeTableCount =
+      balanceOptions?.activeTableCount ?? baseBalance.activeTableCount;
+    this.cookDurationMultiplier =
+      balanceOptions?.cookDurationMultiplier ?? baseBalance.cookDurationMultiplier;
+    this.burnDurationMultiplier =
+      balanceOptions?.burnDurationMultiplier ?? baseBalance.burnDurationMultiplier;
+    this.timeRemaining = this.shiftDurationSeconds;
 
     this.players = {
       chef: {
@@ -179,13 +213,26 @@ export class GameSimulation {
     this.eventBus = new GameEventBus();
     this.tableManager = new TableManager(this.pathfinding, this.eventBus);
 
+    // Apply active table count balance (e.g., 4 active tables out of 6 in Solo Training Mode)
+    const allTables = this.tableManager.getAllTables();
+    if (this.activeTableCount > 0 && this.activeTableCount < allTables.length) {
+      for (let i = this.activeTableCount; i < allTables.length; i += 1) {
+        allTables[i].setDisabled(true);
+      }
+    }
+
+    const customerConfigOverrides: Partial<CustomerSystemConfig> = {
+      ...(isSoloBalanced ? SOLO_BALANCE_CONFIG.customerConfig : {}),
+      ...(balanceOptions?.customerConfig ?? {}),
+    };
+
     this.customerManager = new CustomerManager(
       this.navGrid,
       this.pathfinding,
       this.collision,
       this.tableManager,
       this.eventBus,
-      {},
+      customerConfigOverrides,
       {
         onCustomerAngryLeave: ({ tableId, col, row, memberCount }) => {
           this.customersLost += memberCount;
@@ -257,6 +304,18 @@ export class GameSimulation {
 
   public getOrderService(): OrderService {
     return this.orderService;
+  }
+
+  public getBalanceConfig() {
+    return {
+      mode: this.mode,
+      shiftDurationSeconds: this.shiftDurationSeconds,
+      targetScores: [...this.targetScores] as [number, number, number],
+      activeTableCount: this.activeTableCount,
+      cookDurationMultiplier: this.cookDurationMultiplier,
+      burnDurationMultiplier: this.burnDurationMultiplier,
+      customerConfig: { ...this.customerManager.config },
+    };
   }
 
   public getEventBus(): GameEventBus {
@@ -984,23 +1043,25 @@ export class GameSimulation {
       });
 
       // Advance authoritative Phase 05 CustomerManager + TableManager
-      const progressRatio = 1 - this.timeRemaining / SHIFT_DURATION_SECONDS;
+      const progressRatio = 1 - this.timeRemaining / this.shiftDurationSeconds;
       this.customerManager.update(dt, now, progressRatio);
 
-      // Cooking stations progress & burn timer (prepped dishes cook 35% faster!)
+      // Cooking stations progress & burn timer (prepped dishes cook 35% faster; respects mode multipliers)
       for (const st of this.stations) {
         if (!st.dishId) continue;
         const recipe = RECIPES[st.dishId];
         const prepSpeedMul = this.stationPrepped.get(st.id) ? 1.35 : 1.0;
+        const effectiveCookSeconds = Math.max(0.5, recipe.cookSeconds * this.cookDurationMultiplier);
+        const effectiveBurnSeconds = Math.max(1.0, recipe.burnSeconds * this.burnDurationMultiplier);
         if (st.status === 'cooking') {
-          st.progress += (dt * prepSpeedMul) / recipe.cookSeconds;
+          st.progress += (dt * prepSpeedMul) / effectiveCookSeconds;
           if (st.progress >= 1) {
             st.progress = 1;
             st.status = 'ready';
             this.pushEvent('serve', st.col, st.row, 'Ready!', '#22C55E');
           }
         } else if (st.status === 'ready') {
-          st.burnProgress += dt / recipe.burnSeconds;
+          st.burnProgress += dt / effectiveBurnSeconds;
           if (st.burnProgress >= 1) {
             st.burnProgress = 1;
             st.status = 'burned';
@@ -1030,9 +1091,9 @@ export class GameSimulation {
   }
 
   public computeStars(): number {
-    if (this.score >= TARGET_SCORES[2]) return 3;
-    if (this.score >= TARGET_SCORES[1]) return 2;
-    if (this.score >= TARGET_SCORES[0]) return 1;
+    if (this.score >= this.targetScores[2]) return 3;
+    if (this.score >= this.targetScores[1]) return 2;
+    if (this.score >= this.targetScores[0]) return 1;
     return 0;
   }
 
@@ -1047,7 +1108,7 @@ export class GameSimulation {
       customersLost: this.customersLost,
       tipsEarned: this.tipsEarned,
       maxCombo: this.maxCombo,
-      durationSeconds: Math.round(SHIFT_DURATION_SECONDS - this.timeRemaining),
+      durationSeconds: Math.round(this.shiftDurationSeconds - this.timeRemaining),
       chefName: this.players.chef.name,
       waiterName: this.players.waiter.name,
       myRole,
@@ -1060,7 +1121,7 @@ export class GameSimulation {
       mode: this.mode,
       phase: this.phase,
       timeRemaining: Number(this.timeRemaining.toFixed(1)),
-      totalDuration: SHIFT_DURATION_SECONDS,
+      totalDuration: this.shiftDurationSeconds,
       score: this.score,
       combo: this.combo,
       maxCombo: this.maxCombo,
@@ -1068,7 +1129,7 @@ export class GameSimulation {
       ordersBurned: this.ordersBurned,
       customersLost: this.customersLost,
       tipsEarned: this.tipsEarned,
-      targetScores: TARGET_SCORES,
+      targetScores: [...this.targetScores] as [number, number, number],
       players: {
         chef: { ...this.players.chef },
         waiter: { ...this.players.waiter },

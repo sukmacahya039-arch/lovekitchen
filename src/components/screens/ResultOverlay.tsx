@@ -1,6 +1,6 @@
 import React from 'react';
 import { Home, RotateCcw, Star, Trophy } from 'lucide-react';
-import type { MatchSummary } from '../../shared/types.ts';
+import { isSoloControlMode, type MatchSummary } from '../../shared/types.ts';
 import type { LeaderboardRow } from '../../services/playerDataService.ts';
 
 interface Props {
@@ -48,6 +48,11 @@ export const ResultOverlay: React.FC<Props> = ({
             {headline}
           </h2>
           <p className="mt-1 text-xs sm:text-sm text-[#7C5340]">
+            {isSoloControlMode(summary.mode) && (
+              <>
+                <strong className="text-[#B45309]">Latihan Solo</strong> ·{' '}
+              </>
+            )}
             Chef: <strong>{summary.chefName}</strong> · Waiter:{' '}
             <strong>{summary.waiterName}</strong>
           </p>
@@ -114,7 +119,7 @@ export const ResultOverlay: React.FC<Props> = ({
             className="flex-1 min-h-[48px] rounded-2xl bg-[#FF5A6E] text-white font-display text-base font-bold hover:bg-[#E8485C] transition flex items-center justify-center gap-2 cursor-pointer"
           >
             <RotateCcw className="w-5 h-5" />
-            <span>Main Lagi (Rematch)</span>
+            <span>{isSoloControlMode(summary.mode) ? 'Latihan Lagi' : 'Main Lagi (Rematch)'}</span>
           </button>
 
           <button

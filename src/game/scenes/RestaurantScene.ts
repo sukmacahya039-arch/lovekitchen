@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { CHEF_SPAWN, WAITER_SPAWN } from '../../shared/layout.ts';
-import type { GameSnapshot, PlayerRole } from '../../shared/types.ts';
+import { isSoloControlMode, type GameSnapshot, type PlayerRole } from '../../shared/types.ts';
 import { audioManager } from '../systems/audio/AudioManager.ts';
 import {
   CharacterRenderer,
@@ -25,6 +25,8 @@ import { socketService } from '../systems/multiplayer/SocketService.ts';
 import { NavigationGrid } from '../systems/navigation/NavigationGrid.ts';
 import { PathfindingService } from '../systems/navigation/PathfindingService.ts';
 import { OrderSystem } from '../systems/order/OrderSystem.ts';
+import { gameSessionManager } from '../systems/session/GameSessionManager.ts';
+import { SOLO_BALANCE_CONFIG } from '../systems/solo/SoloConfig.ts';
 import { gameBridge } from '../systems/ui/GameBridge.ts';
 
 declare global {
@@ -99,12 +101,12 @@ export class RestaurantScene extends Phaser.Scene {
     this.registerKitchenInteractables();
 
     // 5. Create reusable MovementControllers for BOTH Chef Male and Waiter Female
-    const mySocketId = socketService.getSocketId() ?? 'local';
+    const myIdentityId = gameSessionManager.getLocalIdentityId();
     this.controllers = {
       chef: new MovementController(
         {
           characterId: 'chef_male',
-          playerId: mySocketId,
+          playerId: myIdentityId,
           role: 'chef',
           startPosition: CHEF_SPAWN,
           facing: 'front',
@@ -116,7 +118,7 @@ export class RestaurantScene extends Phaser.Scene {
       waiter: new MovementController(
         {
           characterId: 'waiter_female',
-          playerId: mySocketId,
+          playerId: myIdentityId,
           role: 'waiter',
           startPosition: WAITER_SPAWN,
           facing: 'front',
@@ -133,10 +135,15 @@ export class RestaurantScene extends Phaser.Scene {
     this.controllers.chef.setBlockedFeedbackHandler(blockedHandler);
     this.controllers.waiter.setBlockedFeedbackHandler(blockedHandler);
 
-    // Determine initial role from room state
-    const room = socketService.getCurrentRoom();
-    const me = room?.members.find((m) => m.socketId === mySocketId);
-    this.activeRole = me?.role ?? 'chef';
+    // Determine initial role cleanly for either Offline Solo or Online Co-Op
+    if (gameSessionManager.isSoloSession()) {
+      this.activeRole =
+        gameSessionManager.getSoloSession()?.getActiveRole() ?? SOLO_BALANCE_CONFIG.initialRole;
+    } else {
+      const room = socketService.getCurrentRoom();
+      const me = room?.members.find((m) => m.socketId === myIdentityId);
+      this.activeRole = me?.role ?? 'chef';
+    }
     this.lastReportedBridgeMoving = false;
     gameBridge.patch({
       activeScene: 'RestaurantScene',
@@ -144,8 +151,8 @@ export class RestaurantScene extends Phaser.Scene {
       isCharacterMoving: false,
     });
 
-    // Load initial snapshot if already received
-    const initial = socketService.getLatestSnapshot();
+    // Load initial snapshot immediately (synchronous for LocalSoloSession, cached for Online)
+    const initial = gameSessionManager.getLatestSnapshot();
     if (initial) {
       this.applySnapshot(initial, true);
     }
@@ -159,6 +166,7 @@ export class RestaurantScene extends Phaser.Scene {
       onTriggerInteractKey: () => this.triggerNearestInteract(),
       onCancelOrPauseKey: () => this.handleCancelOrPause(),
       onSwapPracticeRoleKey: () => this.trySwapPracticeRole(),
+      onSelectRoleKey: (role) => this.trySelectSoloRole(role),
       onToggleDebugKey: () => {
         const enabled = this.debugOverlay.toggle();
         gameBridge.showToast(enabled ? 'Debug Mode: ON (F3)' : 'Debug Mode: OFF', 1400);
@@ -185,17 +193,17 @@ export class RestaurantScene extends Phaser.Scene {
       () => this.cancelActiveMovement()
     );
 
-    // Watch role swap from React HUD button in practice mode
+    // Watch role swap triggered from React HUD segmented [CHEF][WAITER] button in Solo / Practice mode
     this.unsubBridge = gameBridge.subscribe((state) => {
       if (
-        this.snapshot?.mode === 'practice' &&
+        isSoloControlMode(this.snapshot?.mode) &&
         state.activeControlRole !== this.activeRole
       ) {
         this.applyRoleSwitch(state.activeControlRole);
       }
     });
 
-    this.unsubState = socketService.on('gameState', (snap) => {
+    this.unsubState = gameSessionManager.on('gameState', (snap) => {
       this.applySnapshot(snap, false);
     });
 
@@ -231,7 +239,7 @@ export class RestaurantScene extends Phaser.Scene {
             }
           }
 
-          void socketService.sendInteract(ctx.role, ctx.object.id).then((res) => {
+          void gameSessionManager.sendInteract(ctx.role, ctx.object.id).then((res) => {
             if (res.ok) {
               audioManager.playSfx('pick');
             } else if (res.message) {
@@ -263,6 +271,11 @@ export class RestaurantScene extends Phaser.Scene {
       }
     });
 
+    // Keep disabled dining tables non-interactable (e.g., 4 active tables in Solo Mode)
+    for (const tbl of snap.tables) {
+      this.interactionSystem.setEnabled(tbl.id, tbl.phase05Status !== 'DISABLED');
+    }
+
     this.cookingSystem.sync(snap.stations, 0.016);
     this.kitchenSystem.syncServingPass(snap.servingPass);
     this.kitchenSystem.syncCafeProps(
@@ -277,8 +290,8 @@ export class RestaurantScene extends Phaser.Scene {
   private handleInteractableSelection(obj: InteractableObject): void {
     if (!this.snapshot || this.snapshot.phase !== 'playing') return;
 
-    // In Solo Practice mode, tapping an object belonging exclusively to the other role swaps cleanly
-    if (this.snapshot.mode === 'practice') {
+    // In Solo / Practice mode, tapping an object belonging exclusively to the other role switches smoothly
+    if (isSoloControlMode(this.snapshot.mode)) {
       if (obj.requiredRole === 'chef' && this.activeRole !== 'chef') {
         this.switchPracticeRole('chef');
       } else if (obj.requiredRole === 'waiter' && this.activeRole !== 'waiter') {
@@ -339,8 +352,8 @@ export class RestaurantScene extends Phaser.Scene {
       return;
     }
 
-    // Fallback to server proximity interact if standing near a dynamic context spot
-    void socketService.sendInteract(this.activeRole).then((res) => {
+    // Fallback to session proximity interact if standing near a dynamic context spot
+    void gameSessionManager.sendInteract(this.activeRole).then((res) => {
       if (res.ok) {
         audioManager.playSfx('pick');
       } else if (res.message) {
@@ -369,26 +382,37 @@ export class RestaurantScene extends Phaser.Scene {
       return;
     }
 
-    socketService.setPaused(true);
+    gameSessionManager.setPaused(true);
     gameBridge.navigateTo('PauseScene');
   }
 
   private trySwapPracticeRole(): void {
-    if (this.snapshot?.mode !== 'practice') return;
+    if (!isSoloControlMode(this.snapshot?.mode)) return;
     this.switchPracticeRole(this.activeRole === 'chef' ? 'waiter' : 'chef');
   }
 
+  private trySelectSoloRole(role: PlayerRole): void {
+    if (!isSoloControlMode(this.snapshot?.mode)) return;
+    if (this.activeRole === role) return;
+    this.switchPracticeRole(role);
+  }
+
   private switchPracticeRole(next: PlayerRole): void {
-    if (!this.snapshot) return;
+    if (!this.snapshot || this.activeRole === next) return;
     this.applyRoleSwitch(next);
     audioManager.playSfx('click');
     gameBridge.patch({ activeControlRole: next });
+    gameBridge.showToast(next === 'chef' ? 'Chef Aktif' : 'Waiter Aktif', 1100);
   }
 
   private applyRoleSwitch(next: PlayerRole): void {
-    // Cancel active path on previous character cleanly before switching
-    this.controllers[this.activeRole].cancelMovementAndInteraction();
+    // Freeze active path on previous character right where they stand (never resets position or timers!)
+    const prevCtrl = this.controllers[this.activeRole];
+    prevCtrl.cancelMovementAndInteraction();
+    this.syncMoveNetworkState(prevCtrl.getSnapshot());
+
     this.activeRole = next;
+    gameSessionManager.setSoloActiveRole(next);
     const p = this.snapshot?.players[next];
     if (p) {
       this.controllers[next].syncExternalPosition(p.col, p.row, p.facing);
@@ -486,7 +510,7 @@ export class RestaurantScene extends Phaser.Scene {
     const moved = snap.isMoving;
     const running = snap.isRunning;
     if (moved || this.lastSentMoving || running !== this.lastSentRunning) {
-      socketService.sendMove(
+      gameSessionManager.sendMove(
         this.activeRole,
         Number(snap.position.col.toFixed(2)),
         Number(snap.position.row.toFixed(2)),

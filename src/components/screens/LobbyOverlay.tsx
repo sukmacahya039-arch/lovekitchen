@@ -120,17 +120,26 @@ export const LobbyOverlay: React.FC<Props> = ({
                 </div>
               </div>
             ) : (
-              <div className="py-4 flex flex-col items-center gap-4">
+              <div className="py-4 flex flex-col items-center gap-3.5">
                 <p className="text-sm text-[#6B4432]">
                   Masuk antrean matchmaking real-time untuk dipasangkan dengan 1 partner.
                 </p>
-                <button
-                  type="button"
-                  onClick={onStartMatchmaking}
-                  className="px-7 py-3 min-h-[48px] rounded-2xl bg-[#FF5A6E] text-white font-display text-base font-bold hover:bg-[#E8485C] transition cursor-pointer"
-                >
-                  Cari Partner Sekarang
-                </button>
+                <div className="flex flex-wrap items-center justify-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={onStartMatchmaking}
+                    className="px-7 py-3 min-h-[48px] rounded-2xl bg-[#FF5A6E] text-white font-display text-base font-bold hover:bg-[#E8485C] transition cursor-pointer"
+                  >
+                    Cari Partner Sekarang
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onStartSoloPractice}
+                    className="px-5 py-3 min-h-[48px] rounded-2xl bg-[#F59E0B] text-white font-display text-sm sm:text-base font-bold hover:bg-[#D97706] transition cursor-pointer"
+                  >
+                    Main Latihan Solo
+                  </button>
+                </div>
               </div>
             )}
           </div>

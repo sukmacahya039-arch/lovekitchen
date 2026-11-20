@@ -27,6 +27,7 @@ export class CharacterRenderer {
   private nameTags: Record<PlayerRole, Phaser.GameObjects.Text>;
   private emoteTexts: Record<PlayerRole, Phaser.GameObjects.Text>;
   private activeRing: Phaser.GameObjects.Ellipse;
+  private lastActiveRingRole: PlayerRole | null = null;
   private elapsedSec = 0;
 
   constructor(scene: Phaser.Scene) {
@@ -184,9 +185,20 @@ export class CharacterRenderer {
       shadow.setAlpha(feedback.shadowAlpha);
 
       if (isLocal) {
+        if (this.lastActiveRingRole !== role) {
+          this.lastActiveRingRole = role;
+          const ringHex = role === 'chef' ? 0xd97706 : 0xec4899;
+          this.activeRing.setFillStyle(ringHex, 0.24);
+          this.activeRing.setStrokeStyle(3.2, ringHex, 0.96);
+        }
         this.activeRing.setPosition(container.x, container.y + 4);
         this.activeRing.setDepth(computeIsoDepth(targetCol, targetRow, 4));
-        this.activeRing.setScale(1 + Math.sin(this.elapsedSec * 5) * 0.05);
+        this.activeRing.setScale(1 + Math.sin(this.elapsedSec * 5) * 0.06);
+        nameTag.setAlpha(1);
+        nameTag.setScale(1.04);
+      } else {
+        nameTag.setAlpha(0.84);
+        nameTag.setScale(0.94);
       }
 
       nameTag.setText(state.name);

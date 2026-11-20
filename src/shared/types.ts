@@ -177,9 +177,15 @@ export interface RoomMember {
 
 export type RoomPhase = 'lobby' | 'character_select' | 'playing' | 'paused' | 'finished';
 
+export type GameMode = 'coop' | 'practice' | 'solo';
+
+export function isSoloControlMode(mode?: GameMode | null): boolean {
+  return mode === 'solo' || mode === 'practice';
+}
+
 export interface RoomState {
   code: string;
-  mode: 'coop' | 'practice';
+  mode: GameMode;
   phase: RoomPhase;
   members: RoomMember[];
   hostSocketId: string;
@@ -198,7 +204,7 @@ export interface GameEffectEvent {
 
 export interface GameSnapshot {
   roomCode: string;
-  mode: 'coop' | 'practice';
+  mode: GameMode;
   phase: RoomPhase;
   timeRemaining: number;
   totalDuration: number;
@@ -228,7 +234,7 @@ export interface GameSnapshot {
 
 export interface MatchSummary {
   roomCode: string;
-  mode: 'coop' | 'practice';
+  mode: GameMode;
   score: number;
   stars: number;
   ordersCompleted: number;

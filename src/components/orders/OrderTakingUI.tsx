@@ -4,7 +4,7 @@ import { audioManager } from '../../game/systems/audio/AudioManager.ts';
 import type { MenuCategoryId } from '../../game/systems/menu/MenuCategory.ts';
 import type { MenuItem } from '../../game/systems/menu/MenuConfig.ts';
 import { MenuService } from '../../game/systems/menu/MenuService.ts';
-import { socketService } from '../../game/systems/multiplayer/SocketService.ts';
+import { gameSessionManager } from '../../game/systems/session/GameSessionManager.ts';
 import { OrderDraftManager } from '../../game/systems/orders/OrderDraft.ts';
 import type { OrderDraft, OrderPriority } from '../../game/systems/orders/OrderTypes.ts';
 import { gameBridge } from '../../game/systems/ui/GameBridge.ts';
@@ -161,7 +161,7 @@ export const OrderTakingUI: React.FC<Props> = ({
         quantity: line.quantity,
         notes: line.notes,
       }));
-      const res = await socketService.confirmTableOrder(
+      const res = await gameSessionManager.confirmTableOrder(
         tableId,
         payloadItems,
         draft.notes,
